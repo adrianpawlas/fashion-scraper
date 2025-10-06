@@ -1,0 +1,10 @@
+requests>=2.31.0
+beautifulsoup4>=4.12.3
+lxml>=5.2.2
+python-dotenv>=1.0.1
+PyYAML>=6.0.2
+jmespath>=1.0.1
+sentence-transformers>=3.0.1
+Pillow>=10.4.0
+huggingface-hub>=0.24.6
+transformers>=4.44.2

@@ -1,0 +1,39 @@
+ - brand: Zara
+   merchant: Zara
+   source: scraper
+   debug: true
+   respect_robots: false
+   api:
+     endpoints:
+       - "https://www.zara.com/us/en/category/2443335/products?ajax=true"
+     items_path:
+       - "productGroups[].elements[].commercialComponents[]"
+       - "productGroups[].elements[]"
+       - "products[]"
+     field_map:
+       external_id: "seo.discernProductId"
+       product_id: "seo.discernProductId"
+       title: "name"
+       description: ["seo.jsonLd.description", "detail.colors[].name | [0]", "description"]
+       color_names: ["detail.colors[].name", "detail.colors[].colorName", "detail.colors[].badge | [?@=='COLOR'] | []"]
+       gender: ["sectionName", "section", "familyName"]
+       price: "price"
+       currency: "'USD'"
+       image_url:
+         - "detail.colors[].xmedia[].url | [0]"
+         - "xmedia[].url | [0]"
+       seo_keyword: "seo.keyword"
+       seo_product_id: "id"
+       product_url: null
+       brand: "'Zara'"
+       availability: "availability"
+     headers:
+       User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+       Accept: "application/json, text/plain, */*"
+       Accept-Language: "en-US,en;q=0.9"
+       Referer: "https://www.zara.com/us/en/"
+     debug: true
+     prewarm:
+       - "https://www.zara.com/us/en/"
+       - "https://www.zara.com/us/en/man-tshirts-l855.html"
+     product_url_template: "https://www.zara.com/us/en/{keyword}-p{id}.html?v1={discern_id}"
