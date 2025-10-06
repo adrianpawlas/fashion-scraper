@@ -55,7 +55,8 @@ class SupabaseREST:
 		for i in range(0, len(current_external_ids) or 1, chunk_size):
 			chunk = current_external_ids[i:i + chunk_size]
 			if chunk:
-				ids_list = ",".join([f"\"{x.replace('\"','')}\"" for x in chunk])
+				# Build a comma-separated list of quoted IDs without using f-strings in expressions
+				ids_list = ",".join(['"' + (x or "").replace('"', '') + '"' for x in chunk])
 				filter_qs = f"external_id=in.({ids_list})"
 				url = f"{self.base_url}/rest/v1/products?source=eq.{source}&{filter_qs}"
 				# Select IDs to keep; then DELETE where NOT IN this set using negation on a second call
