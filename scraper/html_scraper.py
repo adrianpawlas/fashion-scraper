@@ -53,13 +53,13 @@ def _fetch_html(session: PoliteSession, url: str, headers: Optional[Dict[str, st
 					pw_proxy["username"] = u.username
 				if u.password:
 					pw_proxy["password"] = u.password
-            browser = pw.chromium.launch(headless=True, proxy=pw_proxy)
+			browser = pw.chromium.launch(headless=True, proxy=pw_proxy)
 			ua = (headers or {}).get("User-Agent") or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 			context = browser.new_context(
 				extra_http_headers=headers or {},
 				user_agent=ua,
 				viewport={"width": 1280, "height": 1800},
-                ignore_https_errors=True,
+				ignore_https_errors=True,
 			)
 			# Basic stealth: mask webdriver, set languages/plugins
 			context.add_init_script(
