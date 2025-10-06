@@ -58,7 +58,7 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	row["title"] = raw.get("title") or "Unknown title"
 	row["description"] = raw.get("description")
 	row["brand"] = raw.get("brand")
-    row["price"] = raw.get("price")
+	row["price"] = raw.get("price")
 	row["currency"] = raw.get("currency")
 	row["image_url"] = raw.get("image_url")
 	row["product_url"] = raw.get("product_url")
@@ -116,36 +116,36 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 			row["product_url"] = formatted
 
 	# Normalize price from minor units (cents) to decimal if needed
-    try:
-        price_val = row.get("price")
-        if price_val is not None:
-            # Handle common price formats: integers in minor units, "49.90", "CZK849", "$49.90"
-            if isinstance(price_val, (int, float)):
-                # If it's a large integer, assume minor units (e.g., 4990 -> 49.90)
-                if isinstance(price_val, int) and price_val >= 1000:
-                    row["price"] = price_val / 100.0
-                else:
-                    row["price"] = float(price_val)
-            elif isinstance(price_val, str):
-                s = price_val.strip()
-                # Remove currency symbols and letters
-                s_clean = re.sub(r"[^0-9.,]", "", s)
-                # Replace comma as decimal if needed
-                if s_clean.count(",") == 1 and s_clean.count(".") == 0:
-                    s_clean = s_clean.replace(",", ".")
-                # Remove thousand separators
-                if s_clean.count(".") > 1:
-                    parts = s_clean.split(".")
-                    s_clean = "".join(parts[:-1]) + "." + parts[-1]
-                if s_clean:
-                    num = float(s_clean)
-                    # If looks like minor units (>= 1000 and no decimal), scale down
-                    if num >= 1000 and abs(num - int(num)) < 1e-9:
-                        row["price"] = num / 100.0
-                    else:
-                        row["price"] = num
-    except Exception:
-        pass
+	try:
+		price_val = row.get("price")
+		if price_val is not None:
+			# Handle common price formats: integers in minor units, "49.90", "CZK849", "$49.90"
+			if isinstance(price_val, (int, float)):
+				# If it's a large integer, assume minor units (e.g., 4990 -> 49.90)
+				if isinstance(price_val, int) and price_val >= 1000:
+					row["price"] = price_val / 100.0
+				else:
+					row["price"] = float(price_val)
+			elif isinstance(price_val, str):
+				s = price_val.strip()
+				# Remove currency symbols and letters
+				s_clean = re.sub(r"[^0-9.,]", "", s)
+				# Replace comma as decimal if needed
+				if s_clean.count(",") == 1 and s_clean.count(".") == 0:
+					s_clean = s_clean.replace(",", ".")
+				# Remove thousand separators
+				if s_clean.count(".") > 1:
+					parts = s_clean.split(".")
+					s_clean = "".join(parts[:-1]) + "." + parts[-1]
+				if s_clean:
+					num = float(s_clean)
+					# If looks like minor units (>= 1000 and no decimal), scale down
+					if num >= 1000 and abs(num - int(num)) < 1e-9:
+						row["price"] = num / 100.0
+					else:
+						row["price"] = num
+	except Exception:
+		pass
 	# If no color_names present, try extracting a trailing color token from description
 	try:
 		if not row.get("color_names") and isinstance(row.get("description"), str):
