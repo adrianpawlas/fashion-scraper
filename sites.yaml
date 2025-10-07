@@ -1,6 +1,7 @@
  - brand: Zara
    merchant: Zara
    source: scraper
+  country: us
    debug: true
    respect_robots: false
    api:

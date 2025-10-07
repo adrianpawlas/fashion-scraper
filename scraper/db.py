@@ -99,4 +99,28 @@ class SupabaseREST:
 				if del_resp.status_code not in (200, 204):
 					raise RuntimeError(f"Supabase delete failed: {del_resp.status_code} {del_resp.text}")
 
+	def delete_missing_for_source_merchant_country(self, source: str, merchant_name: str, country: str, current_external_ids: List[str]) -> None:
+		"""Delete products for a given (source, merchant_name, country) not present in current_external_ids.
+
+		This ensures we do not delete other countries' or shops' products.
+		"""
+		if current_external_ids is None:
+			current_external_ids = []
+		mn_enc = merchant_name.replace(" ", "%20")
+		cty_enc = (country or "").replace(" ", "%20")
+		# Fetch existing IDs scoped by source, merchant and country
+		url = f"{self.base_url}/rest/v1/products?source=eq.{source}&merchant_name=eq.{mn_enc}&country=eq.{cty_enc}&select=external_id"
+		resp = self.session.get(url, timeout=60)
+		resp.raise_for_status()
+		all_ids = [r.get("external_id") for r in resp.json() if r.get("external_id") is not None]
+		to_delete = [eid for eid in all_ids if eid not in current_external_ids]
+		chunk_size = 300
+		for j in range(0, len(to_delete), chunk_size):
+			chunk_del = to_delete[j:j + chunk_size]
+			for eid in chunk_del:
+				del_url = f"{self.base_url}/rest/v1/products?source=eq.{source}&merchant_name=eq.{mn_enc}&country=eq.{cty_enc}&external_id=eq.{eid}"
+				del_resp = self.session.delete(del_url, timeout=60)
+				if del_resp.status_code not in (200, 204):
+					raise RuntimeError(f"Supabase delete failed: {del_resp.status_code} {del_resp.text}")
+
 

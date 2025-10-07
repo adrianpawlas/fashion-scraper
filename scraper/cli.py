@@ -140,16 +140,19 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 						continue
 					except Exception:
 						pass
-		for p in products:
+	for p in products:
 			p.setdefault("merchant", merchant)
 			p.setdefault("source", site.get("source", "scraper"))
+		# propagate country from site config if present
+		if site.get("country") and not p.get("country"):
+			p["country"] = site.get("country")
 			# decide external_id based on mapping or fallbacks
 			if not p.get("external_id"):
 				p["external_id"] = p.get("product_id") or p.get("product_url")
 			# pass along seo keyword and template if configured
 			if api_conf.get("product_url_template"):
 				p["product_url_template"] = api_conf["product_url_template"]
-			row = to_supabase_row(p)
+		row = to_supabase_row(p)
 			# compute image embedding only
 			row["embedding"] = get_image_embedding(row.get("image_url"))
 			collected.append(row)
@@ -199,6 +202,8 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 			prod = scrape_product_page(session, url, html_conf["product_selectors"], headers=h_html, use_browser=bool(html_conf.get("use_browser")))
 			prod["merchant"] = merchant
 			prod["source"] = site.get("source", "scraper")
+			if site.get("country") and not prod.get("country"):
+				prod["country"] = site.get("country")
 			prod["external_id"] = prod.get("product_id") or url
 			prod["product_url"] = url
 			row = to_supabase_row(prod)
@@ -209,9 +214,10 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 	if collected:
 		db.upsert_products(collected)
 		if sync:
-			# Delete products from this (source, merchant) not seen in this run
+			# Delete products from this (source, merchant, country) not seen in this run
 			seen_ids = [r.get("external_id") for r in collected if r.get("external_id")]
-			db.delete_missing_for_source_and_merchant(site.get("source", "scraper"), merchant, seen_ids)
+			country = site.get("country") or ""
+			db.delete_missing_for_source_merchant_country(site.get("source", "scraper"), merchant, country, seen_ids)
 	return len(collected)
 
 

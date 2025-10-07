@@ -60,6 +60,7 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	row["brand"] = raw.get("brand")
 	row["price"] = raw.get("price")
 	row["currency"] = raw.get("currency")
+	row["country"] = raw.get("country")
 	row["image_url"] = raw.get("image_url")
 	row["product_url"] = raw.get("product_url")
 	row["affiliate_url"] = raw.get("affiliate_url")
@@ -198,9 +199,14 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	except Exception:
 		pass
 
-	# Build metadata json: include raw fields that are not in main columns, plus _meta
+	# Build metadata json: include base info, plus site/source-specific _meta and useful raw fields
 	try:
+		# Start with a minimal base so metadata is never empty
 		meta: Dict[str, Any] = {}
+		for k in ("source", "merchant_name", "country", "external_id"):
+			v = row.get(k)
+			if v not in (None, ""):
+				meta[k] = v
 		if isinstance(raw.get("_meta"), dict):
 			meta.update(raw["_meta"])  # type: ignore[arg-type]
 		# include helpful raw context when present
@@ -212,7 +218,7 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 			meta["original_price"] = raw.get("price")
 		if raw.get("currency") is not None and "original_currency" not in meta:
 			meta["original_currency"] = raw.get("currency")
-		row["metadata"] = meta or None
+		row["metadata"] = meta
 	except Exception:
 		pass
 	return row
