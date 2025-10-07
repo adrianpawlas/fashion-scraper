@@ -140,22 +140,22 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 						continue
 					except Exception:
 						pass
-	for p in products:
-		p.setdefault("merchant", merchant)
-		p.setdefault("source", site.get("source", "scraper"))
-		# propagate country from site config if present
-		if site.get("country") and not p.get("country"):
-			p["country"] = site.get("country")
-		# decide external_id based on mapping or fallbacks
-		if not p.get("external_id"):
-			p["external_id"] = p.get("product_id") or p.get("product_url")
-		# pass along seo keyword and template if configured
-		if api_conf.get("product_url_template"):
-			p["product_url_template"] = api_conf["product_url_template"]
-		row = to_supabase_row(p)
-		# compute image embedding only
-		row["embedding"] = get_image_embedding(row.get("image_url"))
-		collected.append(row)
+		for p in products:
+			p.setdefault("merchant", merchant)
+			p.setdefault("source", site.get("source", "scraper"))
+			# propagate country from site config if present
+			if site.get("country") and not p.get("country"):
+				p["country"] = site.get("country")
+			# decide external_id based on mapping or fallbacks
+			if not p.get("external_id"):
+				p["external_id"] = p.get("product_id") or p.get("product_url")
+			# pass along seo keyword and template if configured
+			if api_conf.get("product_url_template"):
+				p["product_url_template"] = api_conf["product_url_template"]
+			row = to_supabase_row(p)
+			# compute image embedding only
+			row["embedding"] = get_image_embedding(row.get("image_url"))
+			collected.append(row)
 	elif site.get("html"):
 		html_conf = site["html"]
 		# per-site headers for HTML scraping if provided
