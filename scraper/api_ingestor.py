@@ -46,6 +46,12 @@ def ingest_api(session: PoliteSession, endpoint: str, jmes_items: Any, field_map
 	with_image = 0
 	for item in items:
 		prod = flatten_product(item, field_map)
+		# Preserve full original item for downstream metadata storage
+		try:
+			prod["_raw_item"] = item
+			prod["_meta"] = {"source": "api", "endpoint": endpoint}
+		except Exception:
+			pass
 		# Ensure at least an identifier exists
 		if not (prod.get("external_id") or prod.get("product_id")):
 			continue

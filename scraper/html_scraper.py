@@ -111,6 +111,12 @@ def _fetch_html(session: PoliteSession, url: str, headers: Optional[Dict[str, st
 def scrape_product_page(session: PoliteSession, url: str, selectors: Dict[str, str], headers: Optional[Dict[str, str]] = None, use_browser: bool = False) -> Dict:
 	html = _fetch_html(session, url, headers, use_browser)
 	data = parse_product_html(html, selectors)
+	# Attach minimal metadata for downstream storage
+	try:
+		data["_meta"] = {"source": "html", "page_url": url, "selectors": selectors}
+		data["_raw_html_len"] = len(html or "")
+	except Exception:
+		pass
 	data["product_url"] = url
 	return data
 

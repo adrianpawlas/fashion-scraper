@@ -35,8 +35,8 @@ class SupabaseREST:
 		headers = {
 			"Prefer": "resolution=merge-duplicates,return=minimal",
 		}
-		# Chunk inserts to keep requests reasonable
-		chunk_size = 500
+		# Chunk inserts to keep requests reasonable (metadata can be large)
+		chunk_size = 100
 		for i in range(0, len(products), chunk_size):
 			chunk = products[i:i + chunk_size]
 			resp = self.session.post(endpoint, headers=headers, data=json.dumps(chunk), timeout=60)
