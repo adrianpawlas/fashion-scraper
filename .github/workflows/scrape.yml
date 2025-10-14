@@ -17,7 +17,6 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       USER_AGENT: ${{ secrets.USER_AGENT }}
-      EMBEDDINGS_MODEL: ${{ secrets.EMBEDDINGS_MODEL }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
       HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
 
