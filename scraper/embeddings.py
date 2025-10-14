@@ -16,9 +16,9 @@ _model_error: bool = False
 def _get_model() -> SentenceTransformer:
     global _model, _model_error
     if _model is None and not _model_error:
-    	# Use a widely available public model by default; allow override via env
-    	# Prefer a 512-d model (CLIP ViT-B/32) for smaller vectors and speed
-    	_model_name = os.getenv("EMBEDDINGS_MODEL") or "sentence-transformers/clip-ViT-B-32"
+        # Use a widely available public model by default; allow override via env
+        # Prefer a 512-d model (CLIP ViT-B/32) for smaller vectors and speed
+        _model_name = os.getenv("EMBEDDINGS_MODEL") or "sentence-transformers/clip-ViT-B-32"
         try:
             _model = SentenceTransformer(_model_name)
         except Exception:
