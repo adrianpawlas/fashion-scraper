@@ -102,7 +102,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 								prod["external_id"] = prod.get("product_id") or url
 								prod["product_url"] = url
 								row = to_supabase_row(prod)
-								row["embedding"] = get_image_embedding(row.get("image_url"))
+								emb = get_image_embedding(row.get("image_url"))
+								if emb is not None:
+									row["embedding"] = emb
 								collected.append(row)
 							# Skip to next endpoint after HTML fallback
 							continue
@@ -134,7 +136,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 							prod["external_id"] = prod.get("product_id") or url
 							prod["product_url"] = url
 							row = to_supabase_row(prod)
-							row["embedding"] = get_image_embedding(row.get("image_url"))
+							emb = get_image_embedding(row.get("image_url"))
+							if emb is not None:
+								row["embedding"] = emb
 							collected.append(row)
 						# skip normal product flow for this endpoint
 						continue
@@ -154,7 +158,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 				p["product_url_template"] = api_conf["product_url_template"]
 			row = to_supabase_row(p)
 			# compute image embedding only
-			row["embedding"] = get_image_embedding(row.get("image_url"))
+			emb = get_image_embedding(row.get("image_url"))
+			if emb is not None:
+				row["embedding"] = emb
 			collected.append(row)
 	elif site.get("html"):
 		html_conf = site["html"]
@@ -207,7 +213,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 			prod["external_id"] = prod.get("product_id") or url
 			prod["product_url"] = url
 			row = to_supabase_row(prod)
-			row["embedding"] = get_image_embedding(row.get("image_url"))
+			emb = get_image_embedding(row.get("image_url"))
+			if emb is not None:
+				row["embedding"] = emb
 			collected.append(row)
 	else:
 		raise ValueError(f"Site {brand} missing 'api' or 'html' config")
