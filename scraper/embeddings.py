@@ -1,7 +1,6 @@
 import os
 from typing import Optional
-from time import sleep
-import random
+from time import sleep, time
 
 import requests
 
@@ -24,58 +23,48 @@ def get_image_embedding(image_url: str) -> Optional[list]:
 
     # Handle Zara's {width} placeholder
     if "{width}" in raw_url:
-        # Try common widths; Railway service will handle the download
         raw_url = raw_url.replace("{width}", "800", 1)
 
-    # Retry configuration
-    max_retries = max(1, int(os.getenv("EMBEDDINGS_RETRIES", "2")))
-    timeout_seconds = int(os.getenv("EMBEDDINGS_TIMEOUT", "120"))  # Cold start can take 60s
+    # Configuration
+    timeout_seconds = int(os.getenv("EMBEDDINGS_TIMEOUT", "30"))
+    
+    start_time = time()
+    
+    try:
+        response = requests.post(
+            RAILWAY_EMBED_URL,
+            json={
+                'image': raw_url,
+                'type': 'url'
+            },
+            timeout=timeout_seconds
+        )
+        
+        elapsed = time() - start_time
+        
+        response.raise_for_status()
+        data = response.json()
 
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(
-                RAILWAY_EMBED_URL,
-                json={
-                    'image': raw_url,
-                    'type': 'url'
-                },
-                timeout=timeout_seconds
-            )
-            response.raise_for_status()
-            data = response.json()
+        embedding = data.get('embedding')
+        if not embedding:
+            raise ValueError("No embedding in response")
 
-            embedding = data.get('embedding')
-            if not embedding:
-                raise ValueError("No embedding in response")
+        # Validate dimension (must be 512 to match mobile app & database)
+        if len(embedding) != 512:
+            raise ValueError(f"Expected 512-dim, got {len(embedding)}")
 
-            # Validate dimension (must be 512 to match mobile app & database)
-            if len(embedding) != 512:
-                raise ValueError(f"Expected 512-dim, got {len(embedding)}")
+        print(f"[EMBED_OK] {elapsed:.1f}s - {raw_url[:60]}")
+        return embedding
 
-            return embedding
+    except requests.exceptions.Timeout:
+        print(f"[TIMEOUT] {timeout_seconds}s - {raw_url[:60]}")
+        return None
 
-        except requests.exceptions.Timeout:
-            if attempt < max_retries - 1:
-                print(f"⚠️  Railway timeout (cold start?) for {raw_url} - retrying...")
-                sleep(2)
-                continue
-            else:
-                print(f"❌ Railway timeout after {max_retries} attempts: {raw_url}")
-                return None
+    except requests.exceptions.HTTPError as e:
+        status = e.response.status_code if hasattr(e, 'response') else '?'
+        print(f"[HTTP_{status}] {time() - start_time:.1f}s - {raw_url[:60]}")
+        return None
 
-        except requests.exceptions.HTTPError as e:
-            # 4xx/5xx errors from Railway service
-            print(f"❌ Railway HTTP error for {raw_url}: {e}")
-            if attempt < max_retries - 1:
-                sleep(1)
-                continue
-            return None
-
-        except Exception as e:
-            print(f"❌ Railway embedding failed for {raw_url}: {e}")
-            if attempt < max_retries - 1:
-                sleep(1)
-                continue
-            return None
-
-    return None
+    except Exception as e:
+        print(f"[ERROR] {str(e)[:80]} - {raw_url[:60]}")
+        return None
