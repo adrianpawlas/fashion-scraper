@@ -66,6 +66,7 @@ def get_image_embedding_local(image_url: str) -> Optional[list]:
         return vec[0].tolist()
     except Exception as e:
         print(f"[ERROR] Local embedding failed: {str(e)[:80]}")
+        print(f"        URL: {raw_url}")
         return None
 
 
