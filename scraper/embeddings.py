@@ -121,11 +121,21 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
 
 def get_image_embedding(image_url: str) -> Optional[list]:
     """
-    Get image embedding.
-    - Default: Local model (fast, ~0.5s per image, good enough for visual search)
-    - If USE_RAILWAY_EMBEDDINGS=true: Railway API (slow, ~45s per image, exact match with mobile)
+    Get image embedding with automatic fallback.
+    - First: Try local model (fast, ~0.5s per image)
+    - Fallback: If local fails (403/404), try Railway API (slow, ~45s per image)
+    - This ensures every product gets an embedding, even if it takes longer
     """
     if USE_RAILWAY:
+        # If explicitly set to use Railway, skip local attempt
         return get_image_embedding_railway(image_url)
-    else:
-        return get_image_embedding_local(image_url)
+    
+    # Try local first (fast)
+    embedding = get_image_embedding_local(image_url)
+    
+    # If local failed, fallback to Railway (slow but more reliable)
+    if embedding is None:
+        print(f"[FALLBACK] Retrying with Railway API...")
+        embedding = get_image_embedding_railway(image_url)
+    
+    return embedding
