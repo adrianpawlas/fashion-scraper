@@ -47,9 +47,17 @@ def get_image_embedding_local(image_url: str) -> Optional[list]:
         raw_url = raw_url.replace("{width}", "800", 1)
     
     try:
-        headers = {}
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        
+        # Special handling for Zara images
         if "zara" in raw_url.lower():
             headers["Referer"] = "https://www.zara.com/"
+            headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+            headers["Sec-Fetch-Dest"] = "image"
+            headers["Sec-Fetch-Mode"] = "no-cors"
+            headers["Sec-Fetch-Site"] = "same-site"
         
         resp = requests.get(raw_url, headers=headers, timeout=15)
         resp.raise_for_status()

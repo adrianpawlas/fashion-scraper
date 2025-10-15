@@ -31,14 +31,27 @@ class SupabaseREST:
 			# last one wins; typically identical so doesn't matter
 			seen[key] = p
 		products = list(seen.values())
+		
+		# Normalize all products to have the same keys (Supabase requirement)
+		# Collect all possible keys from the batch
+		all_keys = set()
+		for p in products:
+			all_keys.update(p.keys())
+		
+		# Ensure every product has all keys (fill missing with None)
+		normalized_products = []
+		for p in products:
+			normalized = {key: p.get(key) for key in all_keys}
+			normalized_products.append(normalized)
+		
 		endpoint = f"{self.base_url}/rest/v1/products?on_conflict=source,external_id"
 		headers = {
 			"Prefer": "resolution=merge-duplicates,return=minimal",
 		}
 		# Chunk inserts to keep requests reasonable (metadata can be large)
 		chunk_size = 100
-		for i in range(0, len(products), chunk_size):
-			chunk = products[i:i + chunk_size]
+		for i in range(0, len(normalized_products), chunk_size):
+			chunk = normalized_products[i:i + chunk_size]
 			resp = self.session.post(endpoint, headers=headers, data=json.dumps(chunk), timeout=60)
 			if resp.status_code not in (200, 201, 204):
 				raise RuntimeError(f"Supabase upsert failed: {resp.status_code} {resp.text}")
