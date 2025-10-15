@@ -22,6 +22,7 @@
       price: "price"
       currency: "'USD'"
       image_url:
+        - "detail.colors[].xmedia[].extraInfo.deliveryUrl | [0]"
         - "detail.colors[].xmedia[].url | [0]"
         - "xmedia[].url | [0]"
       seo_keyword: "seo.keyword"
