@@ -26,9 +26,14 @@ Lightweight scraper/importer to populate a `products` table in Supabase from bra
    - Paste `supabase_schema.sql`
 5. Configure target sites in `sites.yaml`.
 
-### Run
+### Run scraper (all stores, with sync)
 ```bash
-python -m scraper.cli --sites all --config sites.yaml
+python -m scraper.cli --sites all --sync
+```
+
+### Run scraper (specific store)
+```bash
+python -m scraper.cli --sites Zara --sync
 ```
 
 ### Config notes (`sites.yaml`)
