@@ -6,7 +6,7 @@ from .http_client import PoliteSession
 from .db import SupabaseREST
 from .api_ingestor import ingest_api, discover_category_urls, discover_from_html
 from .transform import to_supabase_row
-from .html_scraper import scrape_category_for_links, scrape_product_page
+from .html_scraper import scrape_category_for_links, scrape_product_page, scrape_category_for_products
 from .sitemap import fetch_sitemap_urls
 from .embeddings import get_image_embedding
 
@@ -187,36 +187,66 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 						pass
 			except Exception:
 				pass
-		for cat in html_conf.get("category_urls", []):
-			product_links.extend(scrape_category_for_links(
-				session,
-				cat,
-				html_conf["product_link_selector"],
-				headers=h_html,
-				use_browser=bool(html_conf.get("use_browser"))
-			))
-		product_links = list(dict.fromkeys(product_links))
-		# Debug: show how many links were found on HTML pages
-		if dbg or bool(site.get("debug")):
-			try:
-				print(f"Debug: HTML found {len(product_links)} product links")
-				for l in product_links[:5]:
-					print(f"Debug link: {l}")
-			except Exception:
-				pass
-		for url in product_links[: (limit or len(product_links))]:
-			prod = scrape_product_page(session, url, html_conf["product_selectors"], headers=h_html, use_browser=bool(html_conf.get("use_browser")))
-			prod["merchant"] = merchant
-			prod["source"] = site.get("source", "scraper")
-			if site.get("country") and not prod.get("country"):
-				prod["country"] = site.get("country")
-			prod["external_id"] = prod.get("product_id") or url
-			prod["product_url"] = url
-			row = to_supabase_row(prod)
-			emb = get_image_embedding(row.get("image_url"))
-			if emb is not None:
-				row["embedding"] = emb
-			collected.append(row)
+		# Check if we should extract products directly from category pages
+		if html_conf.get("product_selector"):
+			# Mode: Extract products directly from category pages
+			for cat in html_conf.get("category_urls", []):
+				products = scrape_category_for_products(
+					session,
+					cat,
+					html_conf["product_selector"],
+					html_conf["product_selectors"],
+					headers=h_html,
+					use_browser=bool(html_conf.get("use_browser"))
+				)
+				for prod in products[: (limit or len(products))]:
+					prod["merchant"] = merchant
+					prod["source"] = site.get("source", "scraper")
+					if site.get("country") and not prod.get("country"):
+						prod["country"] = site.get("country")
+					prod["external_id"] = prod.get("external_id") or prod.get("product_id") or f"unknown_{len(collected)}"
+					# No product_url since we extracted from category page
+					row = to_supabase_row(prod)
+					emb = get_image_embedding(row.get("image_url"))
+					if emb is not None:
+						row["embedding"] = emb
+					collected.append(row)
+					if limit and len(collected) >= limit:
+						break
+				if limit and len(collected) >= limit:
+					break
+		else:
+			# Mode: Find links, then visit each product page (original behavior)
+			for cat in html_conf.get("category_urls", []):
+				product_links.extend(scrape_category_for_links(
+					session,
+					cat,
+					html_conf["product_link_selector"],
+					headers=h_html,
+					use_browser=bool(html_conf.get("use_browser"))
+				))
+			product_links = list(dict.fromkeys(product_links))
+			# Debug: show how many links were found on HTML pages
+			if dbg or bool(site.get("debug")):
+				try:
+					print(f"Debug: HTML found {len(product_links)} product links")
+					for l in product_links[:5]:
+						print(f"Debug link: {l}")
+				except Exception:
+					pass
+			for url in product_links[: (limit or len(product_links))]:
+				prod = scrape_product_page(session, url, html_conf["product_selectors"], headers=h_html, use_browser=bool(html_conf.get("use_browser")))
+				prod["merchant"] = merchant
+				prod["source"] = site.get("source", "scraper")
+				if site.get("country") and not prod.get("country"):
+					prod["country"] = site.get("country")
+				prod["external_id"] = prod.get("product_id") or url
+				prod["product_url"] = url
+				row = to_supabase_row(prod)
+				emb = get_image_embedding(row.get("image_url"))
+				if emb is not None:
+					row["embedding"] = emb
+				collected.append(row)
 	else:
 		raise ValueError(f"Site {brand} missing 'api' or 'html' config")
 	if collected:

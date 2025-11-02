@@ -246,3 +246,72 @@ def scrape_category_for_links(session: PoliteSession, url: str, product_link_sel
     return list(dict.fromkeys(links))
 
 
+def scrape_category_for_products(session: PoliteSession, url: str, product_selector: str, product_selectors: Dict[str, str], headers: Optional[Dict[str, str]] = None, use_browser: bool = False) -> List[Dict]:
+    """
+    Extract products directly from category page without visiting individual product pages.
+    This is useful for sites that block product detail pages but allow category scraping.
+    """
+    html = _fetch_html(session, url, headers, use_browser)
+    if not html:
+        return []
+
+    soup = BeautifulSoup(html, "lxml")
+    products = []
+
+    # Find all product containers
+    product_elements = soup.select(product_selector)
+
+    for product_elem in product_elements:
+        try:
+            product_data = {}
+
+            # Extract each field using the selectors
+            for field, selector in product_selectors.items():
+                # Check if this is a literal value (starts and ends with quotes)
+                if isinstance(selector, str) and selector.startswith("'") and selector.endswith("'"):
+                    # Literal value - remove quotes
+                    product_data[field] = selector[1:-1]
+                elif field == "image":
+                    # Handle image URLs specially
+                    img_elem = product_elem.select_one(selector)
+                    if img_elem:
+                        img_src = img_elem.get("src") or img_elem.get("data-src") or ""
+                        # Make relative URLs absolute
+                        if img_src.startswith('//'):
+                            img_src = f"https:{img_src}"
+                        elif img_src.startswith('assets/') or img_src.startswith('/'):
+                            # Try to construct full URL from base
+                            base_url = url.split('/en_us/')[0] if '/en_us/' in url else url.rsplit('/', 1)[0]
+                            img_src = urljoin(base_url + '/', img_src)
+                        product_data["image_url"] = img_src
+                elif field == "price":
+                    # Handle price extraction
+                    price_elem = product_elem.select_one(selector)
+                    if price_elem:
+                        price_text = price_elem.get_text(strip=True)
+                        # Extract numeric price from text like "$39.99"
+                        price_match = re.search(r'(\d+(?:\.\d{2})?)', price_text)
+                        if price_match:
+                            product_data["price"] = float(price_match.group(1))
+                elif selector.startswith("[data-") and selector.endswith("]"):
+                    # Handle data attributes on current element
+                    attr_name = selector[1:-1]  # Remove brackets
+                    if attr_name in product_elem.attrs:
+                        product_data[field] = product_elem.attrs[attr_name]
+                else:
+                    # Handle other text fields
+                    elem = product_elem.select_one(selector)
+                    if elem:
+                        product_data[field] = elem.get_text(strip=True)
+
+            # Only add if we got at least an external_id
+            if product_data.get("external_id") or product_data.get("product_id"):
+                products.append(product_data)
+
+        except Exception as e:
+            print(f"Error extracting product: {e}")
+            continue
+
+    return products
+
+
