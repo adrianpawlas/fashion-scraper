@@ -92,9 +92,9 @@ Run Zara-specific test:
 python test_zara_embedding.py
 ```
 
-Run full scraper:
+Run full scraper (all stores):
 ```bash
-python -m scraper.cli --sites Zara --sync
+python -m scraper.cli --sites all --sync
 ```
 
 ## Next Steps
