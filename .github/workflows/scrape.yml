@@ -32,5 +32,5 @@ jobs:
       - name: Install dependencies
         run: pip install --no-cache-dir -r requirements.txt
 
-      - name: Run scraper (Zara only, with sync)
-        run: python -m scraper.cli --sites Zara --sync
+      - name: Run scraper (all stores, with sync)
+        run: python -m scraper.cli --sync
