@@ -35,5 +35,8 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install chromium
 
+      - name: Run database migration
+        run: python -m scraper.cli --migrate
+
       - name: Run scraper (all stores, with sync)
         run: python -m scraper.cli --sync
