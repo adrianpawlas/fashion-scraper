@@ -211,20 +211,20 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 						if site.get("country") and not prod.get("country"):
 							prod["country"] = site.get("country")
 						prod["external_id"] = prod.get("external_id") or prod.get("product_id") or f"unknown_{len(collected)}"
-					# No product_url since we extracted from category page
-					row = to_supabase_row(prod)
-					image_url = row.get("image_url")
-					if image_url:
-						print(f"Getting embedding for {brand} product {prod.get('external_id', 'unknown')}: {image_url[:100]}...")
-						emb = get_image_embedding(image_url)
-						if emb is not None:
-							row["embedding"] = emb
-							print(f"✓ Embedding generated for {brand} product {prod.get('external_id', 'unknown')}")
+						# No product_url since we extracted from category page
+						row = to_supabase_row(prod)
+						image_url = row.get("image_url")
+						if image_url:
+							print(f"Getting embedding for {brand} product {prod.get('external_id', 'unknown')}: {image_url[:100]}...")
+							emb = get_image_embedding(image_url)
+							if emb is not None:
+								row["embedding"] = emb
+								print(f"✓ Embedding generated for {brand} product {prod.get('external_id', 'unknown')}")
+							else:
+								print(f"✗ Failed to generate embedding for {brand} product {prod.get('external_id', 'unknown')}")
 						else:
-							print(f"✗ Failed to generate embedding for {brand} product {prod.get('external_id', 'unknown')}")
-					else:
-						print(f"No image URL for {brand} product {prod.get('external_id', 'unknown')}")
-					collected.append(row)
+							print(f"No image URL for {brand} product {prod.get('external_id', 'unknown')}")
+						collected.append(row)
 						if limit and len(collected) >= limit:
 							break
 					if limit and len(collected) >= limit:
