@@ -21,7 +21,7 @@ _model_error: bool = False
 def _get_model() -> Optional[SentenceTransformer]:
     global _model, _model_error
     if _model is None and not _model_error:
-        model_name = os.getenv("EMBEDDINGS_MODEL", "sentence-transformers/clip-ViT-B-32")
+        model_name = os.getenv("EMBEDDINGS_MODEL", "google/siglip-large-patch16-384")
         try:
             _model = SentenceTransformer(model_name)
         except Exception as e:
@@ -78,7 +78,7 @@ def get_image_embedding_local(image_url: str) -> Optional[list]:
 
 def get_image_embedding_railway(image_url: str) -> Optional[list]:
     """
-    Get 512-dim embedding from Railway service.
+    Get 1024-dim embedding from Railway service.
     WARNING: Very slow (~40-50s per request) - only use for single products or testing.
     """
     if not image_url or not str(image_url).strip():
@@ -117,8 +117,8 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
         if not embedding:
             raise ValueError("No embedding in response")
 
-        if len(embedding) != 512:
-            raise ValueError(f"Expected 512-dim, got {len(embedding)}")
+        if len(embedding) != 1024:
+            raise ValueError(f"Expected 1024-dim, got {len(embedding)}")
 
         print(f"[RAILWAY_OK] {elapsed:.1f}s - {raw_url[:60]}")
         return embedding
@@ -134,8 +134,8 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
 def get_image_embedding(image_url: str) -> Optional[list]:
     """
     Get image embedding with automatic fallback.
-    - First: Try local model (fast, ~0.5s per image)
-    - Fallback: If local fails (403/404), try Railway API (slow, ~45s per image)
+    - First: Try local model (fast, ~0.5s per image, 1024-dim SigLIP)
+    - Fallback: If local fails (403/404), try Railway API (slow, ~45s per image, 1024-dim)
     - This ensures every product gets an embedding, even if it takes longer
     """
     if USE_RAILWAY:

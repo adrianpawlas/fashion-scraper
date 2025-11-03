@@ -12,18 +12,18 @@ Railway embedding service is **too slow for bulk scraping**:
 ### Default: Local Embeddings (Fast Bulk Scraping)
 
 **Use for:** Automated daily scraping
-- Model: `sentence-transformers/clip-ViT-B-32` (same as Railway uses)
+- Model: `google/siglip-large-patch16-384` (1024-dim SigLIP)
 - Speed: ~1s per image
-- Dimensions: 512
-- Quality: **Should be very close to Railway** (same underlying model)
+- Dimensions: 1024
+- Quality: **High-quality vision model optimized for image understanding**
 
 ### Optional: Railway Embeddings (Exact Match)
 
 **Use for:** Testing, single products, or if local doesn't match well enough
-- API: Railway service
+- API: Railway service (needs to be updated to match new model)
 - Speed: ~45s per image
-- Dimensions: 512
-- Quality: **Exact match with mobile app**
+- Dimensions: 1024
+- Quality: **Exact match with mobile app** (if updated)
 
 ---
 
@@ -81,8 +81,8 @@ print(f"Similarity: {similarity:.4f}")  # Should be > 0.95 if they match well
 | Aspect | Local (Default) | Railway |
 |--------|----------------|---------|
 | **Speed** | ~1s per image | ~45s per image |
-| **Model** | clip-ViT-B-32 | clip-ViT-B-32 (same!) |
-| **Dimensions** | 512 | 512 |
+| **Model** | siglip-large-patch16-384 | siglip-large-patch16-384 (same!) |
+| **Dimensions** | 1024 | 1024 |
 | **Normalization** | Yes | Yes |
 | **Bulk Scraping** | ✅ Perfect | ❌ Too slow |
 | **Mobile App Match** | ~99% similar | 100% exact |
@@ -172,7 +172,7 @@ print("Done! All embeddings updated with Railway.")
 
 ## 🎉 Bottom Line
 
-**Use local embeddings** (default) for scraping. They use the **exact same model** as Railway, so visual search should work great!
+**Use local embeddings** (default) for scraping. They use the **exact same model** as Railway (when updated), so visual search should work great!
 
 If you notice visual search quality issues, we can backfill with Railway later (overnight job).
 

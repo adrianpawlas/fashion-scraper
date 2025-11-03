@@ -60,7 +60,7 @@ if "zara" in raw_url.lower():
 
 ## Expected Behavior
 
-1. **100% embedding coverage:** Every product will have a 512-dim embedding ✅
+1. **100% embedding coverage:** Every product will have a 1024-dim embedding ✅
    - Local model handles ~85-90% of images (fast: ~0.5s each)
    - Railway API handles the remaining 10-15% that are blocked (slower: ~45s each)
 2. **No more upsert failures:** All products will be inserted with consistent structure ✅
