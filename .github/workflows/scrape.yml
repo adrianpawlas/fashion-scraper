@@ -32,5 +32,8 @@ jobs:
       - name: Install dependencies
         run: pip install --no-cache-dir -r requirements.txt
 
+      - name: Install Playwright browsers
+        run: playwright install chromium
+
       - name: Run scraper (all stores, with sync)
         run: python -m scraper.cli --sync
