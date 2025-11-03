@@ -164,14 +164,16 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 			collected.append(row)
 	elif site.get("html"):
 		html_conf = site["html"]
+		print(f"Processing {brand} HTML scraping...")
 		# per-site headers for HTML scraping if provided
 		h_html = {**session.session.headers, **(html_conf.get("headers") or {})}
 		# Prewarm HTML cookies/session to reduce 403s
 		for warm_url in html_conf.get("prewarm", []) or html_conf.get("prewarm_urls", []):
 			try:
 				session.get(warm_url, headers=h_html)
-			except Exception:
-				pass
+				print(f"Prewarmed {brand}: {warm_url}")
+			except Exception as e:
+				print(f"Prewarm failed for {brand}: {warm_url} - {e}")
 		product_links = []
 		# Optional: collect from sitemaps first if configured
 		if html_conf.get("sitemaps"):
@@ -189,32 +191,39 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 				pass
 		# Check if we should extract products directly from category pages
 		if html_conf.get("product_selector"):
+			print(f"Extracting {brand} products directly from category pages...")
 			# Mode: Extract products directly from category pages
 			for cat in html_conf.get("category_urls", []):
-				products = scrape_category_for_products(
-					session,
-					cat,
-					html_conf["product_selector"],
-					html_conf["product_selectors"],
-					headers=h_html,
-					use_browser=bool(html_conf.get("use_browser"))
-				)
-				for prod in products[: (limit or len(products))]:
-					prod["merchant"] = merchant
-					prod["source"] = site.get("source", "scraper")
-					if site.get("country") and not prod.get("country"):
-						prod["country"] = site.get("country")
-					prod["external_id"] = prod.get("external_id") or prod.get("product_id") or f"unknown_{len(collected)}"
-					# No product_url since we extracted from category page
-					row = to_supabase_row(prod)
-					emb = get_image_embedding(row.get("image_url"))
-					if emb is not None:
-						row["embedding"] = emb
-					collected.append(row)
+				print(f"Processing {brand} category: {cat}")
+				try:
+					products = scrape_category_for_products(
+						session,
+						cat,
+						html_conf["product_selector"],
+						html_conf["product_selectors"],
+						headers=h_html,
+						use_browser=bool(html_conf.get("use_browser"))
+					)
+					print(f"{brand} category {cat} yielded {len(products)} products")
+					for prod in products[: (limit or len(products))]:
+						prod["merchant"] = merchant
+						prod["source"] = site.get("source", "scraper")
+						if site.get("country") and not prod.get("country"):
+							prod["country"] = site.get("country")
+						prod["external_id"] = prod.get("external_id") or prod.get("product_id") or f"unknown_{len(collected)}"
+						# No product_url since we extracted from category page
+						row = to_supabase_row(prod)
+						emb = get_image_embedding(row.get("image_url"))
+						if emb is not None:
+							row["embedding"] = emb
+						collected.append(row)
+						if limit and len(collected) >= limit:
+							break
 					if limit and len(collected) >= limit:
 						break
-				if limit and len(collected) >= limit:
-					break
+				except Exception as e:
+					print(f"Error processing {brand} category {cat}: {e}")
+					continue
 		else:
 			# Mode: Find links, then visit each product page (original behavior)
 			for cat in html_conf.get("category_urls", []):
@@ -282,9 +291,14 @@ def main() -> None:
 	db = SupabaseREST(url=supa_env["url"], key=supa_env["key"])
 
 	total = 0
+	print(f"Processing {len(sites)} sites: {[s.get('brand', 'Unknown') for s in sites]}")
 	for site in sites:
-		total += run_for_site(site, session, db, sync=args.sync, limit=args.limit)
-	print(f"Imported {total} products")
+		brand = site.get("brand", "Unknown")
+		print(f"\n--- Processing {brand} ---")
+		site_count = run_for_site(site, session, db, sync=args.sync, limit=args.limit)
+		print(f"{brand}: imported {site_count} products")
+		total += site_count
+	print(f"\nTotal: imported {total} products")
 
 
 if __name__ == "__main__":
