@@ -117,15 +117,23 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
         if not embedding:
             raise ValueError("No embedding in response")
 
+        print(f"[RAILWAY_DEBUG] Received embedding of type {type(embedding)}, length {len(embedding) if hasattr(embedding, '__len__') else 'N/A'}")
+
         # Accept both 512 and 1024 dimensions (transition period)
         if len(embedding) not in [512, 1024]:
             raise ValueError(f"Expected 512 or 1024-dim, got {len(embedding)}")
 
         # Pad 512-dim embeddings to 1024-dim for database compatibility
         if len(embedding) == 512:
+            print(f"[RAILWAY_PAD] Padding 512-dim to 1024-dim - {raw_url[:60]}")
+            # Ensure it's a list that can be extended
+            if not isinstance(embedding, list):
+                embedding = list(embedding)
             # Pad with zeros to reach 1024 dimensions
             embedding.extend([0.0] * 512)
-            print(f"[RAILWAY_PAD] Padded 512-dim to 1024-dim - {raw_url[:60]}")
+            print(f"[RAILWAY_PAD] After padding: {len(embedding)} dimensions")
+        else:
+            print(f"[RAILWAY_OK] Already {len(embedding)}-dim - {raw_url[:60]}")
 
         print(f"[RAILWAY_OK] {elapsed:.1f}s - {raw_url[:60]}")
         return embedding
@@ -141,9 +149,9 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
 def get_image_embedding(image_url: str) -> Optional[list]:
     """
     Get image embedding with automatic fallback.
-    - First: Try local model (fast, ~0.5s per image, 1024-dim SigLIP)
-    - Fallback: If local fails (403/404), try Railway API (slow, ~45s per image, 1024-dim)
-    - This ensures every product gets an embedding, even if it takes longer
+    - If USE_RAILWAY_EMBEDDINGS=true: Use Railway API directly (1024-dim, slow but reliable)
+    - Otherwise: Try local model first (fast), fallback to Railway API if local fails
+    - Railway API returns 512-dim embeddings that get padded to 1024-dim for database compatibility
     """
     if USE_RAILWAY:
         # If explicitly set to use Railway, skip local attempt
