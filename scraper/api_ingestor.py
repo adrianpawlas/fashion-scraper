@@ -22,10 +22,17 @@ def flatten_product(item: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, 
 					continue
 				value = jmespath.search(candidate, item)
 				if value is not None:
+					# For image_url field, skip data URLs (base64 placeholders)
+					if dest == "image_url" and isinstance(value, str) and value.startswith("data:"):
+						continue
 					break
 			out[dest] = value
 		else:
-			out[dest] = jmespath.search(expr, item)
+			value = jmespath.search(expr, item)
+			# For image_url field, skip data URLs (base64 placeholders)
+			if dest == "image_url" and isinstance(value, str) and value.startswith("data:"):
+				value = None
+			out[dest] = value
 	return out
 
 

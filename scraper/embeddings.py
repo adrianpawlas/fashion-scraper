@@ -35,12 +35,18 @@ def get_image_embedding_local(image_url: str) -> Optional[list]:
     """Get embedding using local sentence-transformers model (fast for bulk)."""
     if not image_url or not str(image_url).strip():
         return None
-    
+
     model = _get_model()
     if model is None:
         return None
-    
+
     raw_url = str(image_url).strip()
+
+    # Skip data URLs (base64 embedded images) - these are placeholders
+    if raw_url.startswith("data:"):
+        print(f"[SKIP] Data URL placeholder: {raw_url[:50]}...")
+        return None
+
     if raw_url.startswith("//"):
         raw_url = "https:" + raw_url
     if "{width}" in raw_url:
@@ -79,6 +85,12 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
         return None
 
     raw_url = str(image_url).strip()
+
+    # Skip data URLs (base64 embedded images) - these are placeholders
+    if raw_url.startswith("data:"):
+        print(f"[SKIP] Data URL placeholder: {raw_url[:50]}...")
+        return None
+
     if raw_url.startswith("//"):
         raw_url = "https:" + raw_url
     if "{width}" in raw_url:
