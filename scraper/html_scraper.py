@@ -253,6 +253,7 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
     """
     html = _fetch_html(session, url, headers, use_browser)
     if not html:
+        print(f"[ERROR] Failed to fetch HTML for {url}")
         return []
 
     soup = BeautifulSoup(html, "lxml")
@@ -260,8 +261,9 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
 
     # Find all product containers
     product_elements = soup.select(product_selector)
+    print(f"Found {len(product_elements)} product elements with selector: {product_selector}")
 
-    for product_elem in product_elements:
+    for i, product_elem in enumerate(product_elements):
         try:
             product_data = {}
 
@@ -293,6 +295,24 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                         price_match = re.search(r'(\d+(?:\.\d{2})?)', price_text)
                         if price_match:
                             product_data["price"] = float(price_match.group(1))
+                elif field == "product_url" and isinstance(selector, str) and " + " in selector and "[data-" in selector:
+                    # Handle URL construction like "'https://example.com/' + [data-articlecode] + '.html'"
+                    try:
+                        parts = selector.split(" + ")
+                        url_parts = []
+                        for part in parts:
+                            part = part.strip()
+                            if part.startswith("'") and part.endswith("'"):
+                                url_parts.append(part[1:-1])  # Remove quotes
+                            elif part.startswith("[data-") and part.endswith("]"):
+                                attr_name = part[1:-1]  # Remove brackets
+                                if attr_name in product_elem.attrs:
+                                    url_parts.append(product_elem.attrs[attr_name])
+                                else:
+                                    url_parts.append("")  # Empty if attribute not found
+                        product_data[field] = "".join(url_parts)
+                    except Exception as e:
+                        print(f"Error constructing {field}: {e}")
                 elif selector.startswith("[data-") and selector.endswith("]"):
                     # Handle data attributes on current element
                     attr_name = selector[1:-1]  # Remove brackets
@@ -307,11 +327,17 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
             # Only add if we got at least an external_id
             if product_data.get("external_id") or product_data.get("product_id"):
                 products.append(product_data)
+                if i < 3:  # Debug first 3 products
+                    print(f"Product {i+1} data: {product_data}")
+            else:
+                if i < 3:  # Debug first 3 failed extractions
+                    print(f"Product {i+1} failed - no external_id. Available data: {product_data}")
 
         except Exception as e:
-            print(f"Error extracting product: {e}")
+            print(f"Error extracting product {i+1}: {e}")
             continue
 
+    print(f"Successfully extracted {len(products)} products from {len(product_elements)} elements")
     return products
 
 
