@@ -20,6 +20,29 @@ class SupabaseREST:
 			"Content-Type": "application/json",
 		})
 
+	def run_migration(self, migration_sql: str) -> None:
+		"""Run a SQL migration script."""
+		print("Running database migration...")
+		print("Migration SQL:")
+		print("=" * 50)
+		print(migration_sql)
+		print("=" * 50)
+
+		# Use the SQL execution endpoint
+		endpoint = f"{self.base_url}/rest/v1/rpc/exec_sql"
+		payload = {"sql": migration_sql}
+
+		resp = self.session.post(endpoint, json=payload, timeout=60)
+
+		if resp.status_code not in (200, 201, 204):
+			error_msg = f"Migration failed: {resp.status_code} {resp.text}"
+			print(error_msg)
+			# Don't raise an exception for now, let the user handle it manually if needed
+			print("You may need to run this migration manually in your Supabase SQL editor.")
+		else:
+			print("Migration completed successfully!")
+			print(resp.json() if resp.text else "No response body")
+
 	def upsert_products(self, products: List[Dict]) -> None:
 		"""Upsert a list of product dicts into the 'products' table using (source, external_id)."""
 		if not products:

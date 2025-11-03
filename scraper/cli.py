@@ -282,9 +282,22 @@ def main() -> None:
 	parser.add_argument("--config", default="sites.yaml", help="Path to sites.yaml")
 	parser.add_argument("--sync", action="store_true", help="Delete products not seen in this run for each source")
 	parser.add_argument("--limit", type=int, default=0, help="Limit number of products per site (for testing)")
+	parser.add_argument("--migrate", action="store_true", help="Run database migration for 1024-dim embeddings")
 	args = parser.parse_args()
 
 	load_env()
+	supa_env = get_supabase_env()
+	db = SupabaseREST(url=supa_env["url"], key=supa_env["key"])
+
+	# Handle migration first
+	if args.migrate:
+		print("Running database migration to update embedding column to 1024 dimensions...")
+		with open("migrations/20251103_update_embedding_1024dim.sql", "r") as f:
+			migration_sql = f.read()
+		db.run_migration(migration_sql)
+		print("Migration completed. You can now run the scraper normally.")
+		return
+
 	sites_all = load_sites_config(args.config)
 	sites = get_site_configs(sites_all, args.sites)
 	headers = get_default_headers()
@@ -295,8 +308,6 @@ def main() -> None:
 			respect = False
 			break
 	session = PoliteSession(default_headers=headers, respect_robots=respect)
-	supa_env = get_supabase_env()
-	db = SupabaseREST(url=supa_env["url"], key=supa_env["key"])
 
 	total = 0
 	print(f"Processing {len(sites)} sites: {[s.get('brand', 'Unknown') for s in sites]}")
