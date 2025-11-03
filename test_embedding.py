@@ -29,9 +29,9 @@ def test_embedding_service():
     print(f"          Data type: {type(embedding)}")
     
     # Validate dimension
-    if len(embedding) != 512:
-        print(f"\n[ERROR] Expected 512 dimensions, got {len(embedding)}")
-        print("        Your database expects 512-dim vectors!")
+    if len(embedding) != 1024:
+        print(f"\n[ERROR] Expected 1024 dimensions, got {len(embedding)}")
+        print("        Your database expects 1024-dim vectors!")
         return False
     
     print("\n[SUCCESS] All checks passed!")

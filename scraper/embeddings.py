@@ -21,7 +21,7 @@ _model_error: bool = False
 def _get_model() -> Optional[SentenceTransformer]:
     global _model, _model_error
     if _model is None and not _model_error:
-        model_name = os.getenv("EMBEDDINGS_MODEL", "google/siglip-large-patch16-384")
+        model_name = os.getenv("EMBEDDINGS_MODEL", "BAAI/bge-large-en-v1.5")
         try:
             _model = SentenceTransformer(model_name)
         except Exception as e:
@@ -117,8 +117,15 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
         if not embedding:
             raise ValueError("No embedding in response")
 
-        if len(embedding) != 1024:
-            raise ValueError(f"Expected 1024-dim, got {len(embedding)}")
+        # Accept both 512 and 1024 dimensions (transition period)
+        if len(embedding) not in [512, 1024]:
+            raise ValueError(f"Expected 512 or 1024-dim, got {len(embedding)}")
+
+        # Pad 512-dim embeddings to 1024-dim for database compatibility
+        if len(embedding) == 512:
+            # Pad with zeros to reach 1024 dimensions
+            embedding.extend([0.0] * 512)
+            print(f"[RAILWAY_PAD] Padded 512-dim to 1024-dim - {raw_url[:60]}")
 
         print(f"[RAILWAY_OK] {elapsed:.1f}s - {raw_url[:60]}")
         return embedding
