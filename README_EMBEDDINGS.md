@@ -1,180 +1,76 @@
 # Embedding Strategy for Fashion Scraper
 
-## 🚨 Problem Discovered
+## ✅ Solution: Local HuggingFace Embeddings Only
 
-Railway embedding service is **too slow for bulk scraping**:
-- Railway API: **~45 seconds per product**
-- Local model: **~1 second per product** (after model load)
-- For 2000 products: Railway = 25 hours, Local = 33 minutes
+**No Railway API fallback - only local embeddings for maximum speed and reliability.**
 
-## ✅ Solution: Hybrid Approach
+### Local Embeddings (Required)
 
-### Default: Local Embeddings (Fast Bulk Scraping)
-
-**Use for:** Automated daily scraping
+**Used for:** All scraping operations
 - Model: `google/siglip-large-patch16-384` (1024-dim SigLIP)
-- Speed: ~1s per image
+- Speed: ~1-3s per image (after model load)
 - Dimensions: 1024
 - Quality: **High-quality vision model optimized for image understanding**
-
-### Optional: Railway Embeddings (Exact Match)
-
-**Use for:** Testing, single products, or if local doesn't match well enough
-- API: Railway service (needs to be updated to match new model)
-- Speed: ~45s per image
-- Dimensions: 1024
-- Quality: **Exact match with mobile app** (if updated)
+- Reliability: Works in GitHub Actions and local environments
 
 ---
 
 ## 🔧 Configuration
 
-### Use Local Embeddings (Default - Recommended)
+### Environment Variables
 
 ```bash
 # .env or GitHub Actions secrets
-# Don't set USE_RAILWAY_EMBEDDINGS or set it to false
-USE_RAILWAY_EMBEDDINGS=false
+EMBEDDINGS_MODEL=google/siglip-large-patch16-384  # 1024-dim SigLIP model
 ```
 
-**Scraping time:** ~30-45 minutes for all Zara products ✅
-
-### Use Railway Embeddings
-
-```bash
-# .env or GitHub Actions secrets
-USE_RAILWAY_EMBEDDINGS=true
-EMBEDDINGS_TIMEOUT=60  # Railway needs longer timeout
-```
-
-**Scraping time:** ~20+ hours for all Zara products ❌ (will timeout)
+**Scraping time:** ~30-45 minutes for all products ✅
 
 ---
 
-## 🧪 Testing Embedding Quality
+## 🧪 Testing Embedding Generation
 
-### Test if Local Matches Railway
+### Test Local Embeddings
 
-Run this to compare local vs Railway embeddings:
+Run this to verify embeddings work correctly:
 
 ```python
-from scraper.embeddings import get_image_embedding_local, get_image_embedding_railway
-import numpy as np
+from scraper.embeddings import get_image_embedding
 
-test_url = 'https://static.zara.net/assets/public/xxxx.jpg?w=800'
+test_url = 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400'
 
-# Get both embeddings
-local = np.array(get_image_embedding_local(test_url))
-railway = np.array(get_image_embedding_railway(test_url))
+# Get embedding
+embedding = get_image_embedding(test_url)
 
-# Calculate cosine similarity
-similarity = np.dot(local, railway) / (np.linalg.norm(local) * np.linalg.norm(railway))
-print(f"Similarity: {similarity:.4f}")  # Should be > 0.95 if they match well
+if embedding:
+    print(f"Success! Embedding dimension: {len(embedding)}")
+    print(f"First 5 values: {embedding[:5]}")
+else:
+    print("Failed to generate embedding")
 ```
 
-**Expected result:** Similarity > 0.95 means they're practically identical for visual search.
+**Expected result:** 1024-dimensional embedding vector.
 
 ---
 
-## 📊 Comparison
+## 💡 Why Local Embeddings Only
 
-| Aspect | Local (Default) | Railway |
-|--------|----------------|---------|
-| **Speed** | ~1s per image | ~45s per image |
-| **Model** | siglip-large-patch16-384 | siglip-large-patch16-384 (same!) |
-| **Dimensions** | 1024 | 1024 |
-| **Normalization** | Yes | Yes |
-| **Bulk Scraping** | ✅ Perfect | ❌ Too slow |
-| **Mobile App Match** | ~99% similar | 100% exact |
-| **GitHub Actions** | ✅ Works | ❌ Timeouts |
-
----
-
-## 🎯 Recommended Strategy
-
-### Phase 1: Use Local Embeddings (Now)
-1. Set `USE_RAILWAY_EMBEDDINGS=false` (or don't set it)
-2. Run bulk scraping - gets all products in ~30-45 min
-3. Test visual search in mobile app
-
-### Phase 2: Test Quality
-- If visual search works well → Keep using local ✅
-- If results are off → Consider backfilling with Railway (see Phase 3)
-
-### Phase 3: Backfill with Railway (If Needed)
-
-If local embeddings don't match mobile app well enough, create a backfill script:
-
-```python
-# backfill_railway_embeddings.py
-from scraper.db import SupabaseREST
-from scraper.embeddings import get_image_embedding_railway
-from scraper.config import get_supabase_env
-import time
-
-# Get all products
-supa_env = get_supabase_env()
-db = SupabaseREST(url=supa_env["url"], key=supa_env["key"])
-
-# Fetch products (implement pagination if needed)
-response = requests.get(
-    f"{supa_env['url']}/rest/v1/products",
-    headers={
-        "apikey": supa_env["key"],
-        "Authorization": f"Bearer {supa_env['key']}"
-    },
-    params={"select": "id,image_url", "limit": 1000}
-)
-products = response.json()
-
-# Backfill embeddings (run overnight - will take hours!)
-for i, product in enumerate(products):
-    print(f"[{i+1}/{len(products)}] Processing {product['id']}...")
-    
-    emb = get_image_embedding_railway(product['image_url'])
-    if emb:
-        # Update product
-        requests.patch(
-            f"{supa_env['url']}/rest/v1/products?id=eq.{product['id']}",
-            headers={
-                "apikey": supa_env["key"],
-                "Authorization": f"Bearer {supa_env['key']}",
-                "Content-Type": "application/json"
-            },
-            json={"embedding": emb}
-        )
-    
-    time.sleep(1)  # Rate limiting
-
-print("Done! All embeddings updated with Railway.")
-```
-
----
-
-## 💡 Why This Happens
-
-**Railway is designed for single-user mobile apps:**
-- Each user sends 1 image → get 1 embedding
-- Cold start: ~40s, then stays warm for a few minutes
-- Perfect for on-demand usage
-
-**Not designed for bulk batch processing:**
-- Sending 2000 images in sequence
-- Each request takes 40-50s (no batching)
-- No way to pre-warm or keep alive between requests
-
-**Local model is designed for batch processing:**
+**Local models are designed for batch processing:**
 - Load once, process thousands of images
 - GPU/CPU optimized for batch inference
-- ~1s per image after warmup
+- ~1-3s per image after warmup
+- No API rate limits or network dependencies
+- Works reliably in CI/CD environments
+
+**Benefits:**
+- Fast bulk scraping (30-45 minutes vs hours)
+- No external API dependencies
+- Consistent results across environments
+- Lower operational costs
 
 ---
 
 ## 🎉 Bottom Line
 
-**Use local embeddings** (default) for scraping. They use the **exact same model** as Railway (when updated), so visual search should work great!
-
-If you notice visual search quality issues, we can backfill with Railway later (overnight job).
-
-But likely, you won't notice any difference! 🚀
+**Local SigLIP embeddings provide high-quality image understanding for fashion products with excellent performance and reliability!** 🚀
 
