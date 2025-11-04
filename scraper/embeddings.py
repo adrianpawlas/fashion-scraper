@@ -23,9 +23,14 @@ def _get_model() -> Optional[SentenceTransformer]:
     if _model is None and not _model_error:
         model_name = os.getenv("EMBEDDINGS_MODEL", "BAAI/bge-large-en-v1.5")
         try:
+            print(f"[MODEL] Loading {model_name}...")
+            start_time = time()
             _model = SentenceTransformer(model_name)
+            load_time = time() - start_time
+            print(f"[MODEL] Loaded {model_name} in {load_time:.1f}s")
         except Exception as e:
             print(f"[ERROR] Failed to load model {model_name}: {e}")
+            print(f"        Make sure sentencepiece and protobuf are installed")
             _model_error = True
             return None
     return _model
@@ -49,6 +54,18 @@ def get_image_embedding_local(image_url: str) -> Optional[list]:
 
     if raw_url.startswith("//"):
         raw_url = "https:" + raw_url
+
+    # Clean up malformed URLs (remove extra slashes)
+    if "//" in raw_url and not raw_url.startswith("http"):
+        # Fix URLs like "https://domain.com//path" -> "https://domain.com/path"
+        parts = raw_url.split("//", 1)
+        if len(parts) == 2:
+            protocol = parts[0]
+            rest = parts[1]
+            # Remove consecutive slashes in the path part
+            rest = "/".join(filter(None, rest.split("/")))
+            raw_url = protocol + "//" + rest
+
     if "{width}" in raw_url:
         raw_url = raw_url.replace("{width}", "800", 1)
     
@@ -93,6 +110,18 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
 
     if raw_url.startswith("//"):
         raw_url = "https:" + raw_url
+
+    # Clean up malformed URLs (remove extra slashes)
+    if "//" in raw_url and not raw_url.startswith("http"):
+        # Fix URLs like "https://domain.com//path" -> "https://domain.com/path"
+        parts = raw_url.split("//", 1)
+        if len(parts) == 2:
+            protocol = parts[0]
+            rest = parts[1]
+            # Remove consecutive slashes in the path part
+            rest = "/".join(filter(None, rest.split("/")))
+            raw_url = protocol + "//" + rest
+
     if "{width}" in raw_url:
         raw_url = raw_url.replace("{width}", "800", 1)
 
@@ -146,23 +175,42 @@ def get_image_embedding_railway(image_url: str) -> Optional[list]:
         return None
 
 
-def get_image_embedding(image_url: str) -> Optional[list]:
+def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
     """
-    Get image embedding with automatic fallback.
+    Get image embedding with automatic fallback and retry logic.
     - If USE_RAILWAY_EMBEDDINGS=true: Use Railway API directly (1024-dim, slow but reliable)
     - Otherwise: Try local model first (fast), fallback to Railway API if local fails
     - Railway API returns 512-dim embeddings that get padded to 1024-dim for database compatibility
+    - Implements exponential backoff retry for reliability
     """
     if USE_RAILWAY:
         # If explicitly set to use Railway, skip local attempt
         return get_image_embedding_railway(image_url)
-    
-    # Try local first (fast)
-    embedding = get_image_embedding_local(image_url)
-    
-    # If local failed, fallback to Railway (slow but more reliable)
-    if embedding is None:
-        print(f"[FALLBACK] Retrying with Railway API...")
+
+    # Try local first with retries (fast)
+    for attempt in range(max_retries):
+        if attempt > 0:
+            # Exponential backoff: 1s, 2s, 4s
+            sleep_time = 2 ** (attempt - 1)
+            print(f"[RETRY] Local embedding attempt {attempt + 1}/{max_retries} after {sleep_time}s...")
+            sleep(sleep_time)
+
+        embedding = get_image_embedding_local(image_url)
+        if embedding is not None:
+            return embedding
+
+    # If all local attempts failed, fallback to Railway with retries (slow but more reliable)
+    print(f"[FALLBACK] All local attempts failed, trying Railway API...")
+    for attempt in range(max_retries):
+        if attempt > 0:
+            # Longer exponential backoff for Railway: 2s, 4s, 8s
+            sleep_time = 2 ** attempt
+            print(f"[RETRY] Railway API attempt {attempt + 1}/{max_retries} after {sleep_time}s...")
+            sleep(sleep_time)
+
         embedding = get_image_embedding_railway(image_url)
-    
-    return embedding
+        if embedding is not None:
+            return embedding
+
+    print(f"[FAILED] All embedding attempts failed for: {image_url[:60]}")
+    return None

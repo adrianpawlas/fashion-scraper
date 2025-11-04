@@ -8,14 +8,14 @@ from scraper.embeddings import get_image_embedding
 
 def test_embedding_service():
     """Test embedding generation with a sample image."""
-    
+
     # Test with a public image URL
     test_url = 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400'
-    
-    print("[TEST] Testing Railway embedding service...")
+
+    print("[TEST] Testing embedding service...")
     print(f"[IMAGE] Test image: {test_url}")
-    print("[WAIT] Generating embedding (first request may take ~60s due to cold start)...\n")
-    
+    print("[WAIT] Generating embedding (Railway API takes ~45s per image)...\n")
+
     embedding = get_image_embedding(test_url)
     
     if embedding is None:

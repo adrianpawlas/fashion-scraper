@@ -19,7 +19,6 @@ jobs:
       USER_AGENT: ${{ secrets.USER_AGENT }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
       HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
-      USE_RAILWAY_EMBEDDINGS: "true"
 
     steps:
       - name: Checkout
