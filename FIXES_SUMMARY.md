@@ -60,25 +60,23 @@ if "zara" in raw_url.lower():
 
 ## Expected Behavior
 
-1. **100% embedding coverage:** Every product will have a 1024-dim embedding ✅
-   - Local model handles ~85-90% of images (fast: ~0.5s each)
-   - Railway API handles the remaining 10-15% that are blocked (slower: ~45s each)
+1. **High embedding coverage:** Most products will have 1024-dim embeddings ✅
+   - Local SigLIP model processes images efficiently (~1-3s each)
+   - Some images may fail (403/404/blocked) - stored without embeddings
 2. **No more upsert failures:** All products will be inserted with consistent structure ✅
-3. **Reasonable completion time:** Should complete in 30-60 minutes
-   - If 0% images blocked: ~15 minutes
-   - If 10% images blocked: ~30-45 minutes
-   - If 15% images blocked: ~45-60 minutes
+3. **Reasonable completion time:** Should complete in 30-45 minutes
+   - Local model processing is fast and reliable
+   - No external API dependencies or slow fallbacks
 4. **No more "All object keys must match" errors** ✅
 
 ## Performance Notes
 
-- **Local embeddings:** ~0.5-2s per image (after initial model download)
-- **Railway embeddings:** ~40-50s per image (only use for testing or single products)
-- **Default:** Local embeddings with Railway fallback
-  - 85-90% of images succeed with local model (~0.5s each)
-  - 10-15% that fail (403/404) automatically retry with Railway (~45s each)
-  - **Result: 100% embedding coverage** ✅
-- **To use Railway only:** Set `USE_RAILWAY_EMBEDDINGS=true` environment variable
+- **Local SigLIP embeddings:** ~1-3s per image (after initial model download)
+- **Processing approach:** Direct local model processing only
+  - No external API dependencies
+  - Fast and reliable for bulk scraping
+  - Some images may fail (blocked/CDN issues) - stored without embeddings
+  - **Result: High embedding coverage** ✅
 
 ## Testing
 
@@ -115,5 +113,5 @@ python -m scraper.cli --sites Zara --sync
 
 - **Zara image blocking:** Some Zara images may still be blocked despite enhanced headers. This is acceptable - products will be stored without embeddings.
 - **Missing embeddings:** Products without embeddings won't appear in visual similarity searches, but all other product data will be available.
-- **Future enhancement:** Consider using Railway API for products that fail local embedding (as a fallback), but this would significantly increase runtime.
+- **Image download failures:** Some images may fail due to CDN blocking, anti-bot protection, or network issues. These products are still stored with all available data except embeddings.
 
