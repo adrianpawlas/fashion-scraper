@@ -230,7 +230,10 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 					if limit and len(collected) >= limit:
 						break
 				except Exception as e:
-					print(f"Error processing {brand} category {cat}: {e}")
+					try:
+						print(f"Error processing {brand} category {cat}: {e}")
+					except UnicodeEncodeError:
+						print(f"Error processing {brand} category {cat}: [Unicode encoding error in error message]")
 					continue
 		else:
 			# Mode: Find links, then visit each product page (original behavior)

@@ -269,8 +269,27 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
 
             # Extract each field using the selectors
             for field, selector in product_selectors.items():
+                # Check for dynamic URL construction first (before literal check)
+                if field == "product_url" and isinstance(selector, str) and " + " in selector and "[data-" in selector:
+                    # Handle URL construction like "'https://example.com/' + [data-articlecode] + '.html'"
+                    try:
+                        parts = selector.split(" + ")
+                        url_parts = []
+                        for part in parts:
+                            part = part.strip()
+                            if part.startswith("'") and part.endswith("'"):
+                                url_parts.append(part[1:-1])  # Remove quotes
+                            elif part.startswith("[data-") and part.endswith("]"):
+                                attr_name = part[1:-1]  # Remove brackets
+                                if attr_name in product_elem.attrs:
+                                    url_parts.append(product_elem.attrs[attr_name])
+                                else:
+                                    url_parts.append("")  # Empty if attribute not found
+                        product_data[field] = "".join(url_parts)
+                    except Exception as e:
+                        print(f"Error constructing {field}: {e}")
                 # Check if this is a literal value (starts and ends with quotes)
-                if isinstance(selector, str) and selector.startswith("'") and selector.endswith("'"):
+                elif isinstance(selector, str) and selector.startswith("'") and selector.endswith("'"):
                     # Literal value - remove quotes
                     product_data[field] = selector[1:-1]
                 elif field == "image":
@@ -295,24 +314,6 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                         price_match = re.search(r'(\d+(?:\.\d{2})?)', price_text)
                         if price_match:
                             product_data["price"] = float(price_match.group(1))
-                elif field == "product_url" and isinstance(selector, str) and " + " in selector and "[data-" in selector:
-                    # Handle URL construction like "'https://example.com/' + [data-articlecode] + '.html'"
-                    try:
-                        parts = selector.split(" + ")
-                        url_parts = []
-                        for part in parts:
-                            part = part.strip()
-                            if part.startswith("'") and part.endswith("'"):
-                                url_parts.append(part[1:-1])  # Remove quotes
-                            elif part.startswith("[data-") and part.endswith("]"):
-                                attr_name = part[1:-1]  # Remove brackets
-                                if attr_name in product_elem.attrs:
-                                    url_parts.append(product_elem.attrs[attr_name])
-                                else:
-                                    url_parts.append("")  # Empty if attribute not found
-                        product_data[field] = "".join(url_parts)
-                    except Exception as e:
-                        print(f"Error constructing {field}: {e}")
                 elif selector.startswith("[data-") and selector.endswith("]"):
                     # Handle data attributes on current element
                     attr_name = selector[1:-1]  # Remove brackets
@@ -328,10 +329,16 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
             if product_data.get("external_id") or product_data.get("product_id"):
                 products.append(product_data)
                 if i < 3:  # Debug first 3 products
-                    print(f"Product {i+1} data: {product_data}")
+                    try:
+                        print(f"Product {i+1} data: {product_data}")
+                    except UnicodeEncodeError:
+                        print(f"Product {i+1} data: [Unicode encoding error in product data]")
             else:
                 if i < 3:  # Debug first 3 failed extractions
-                    print(f"Product {i+1} failed - no external_id. Available data: {product_data}")
+                    try:
+                        print(f"Product {i+1} failed - no external_id. Available data: {product_data}")
+                    except UnicodeEncodeError:
+                        print(f"Product {i+1} failed - no external_id. Available data: [Unicode encoding error]")
 
         except Exception as e:
             print(f"Error extracting product {i+1}: {e}")
