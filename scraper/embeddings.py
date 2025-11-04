@@ -4,38 +4,40 @@ from time import sleep, time
 from io import BytesIO
 
 import requests
+import torch
 from PIL import Image
-from sentence_transformers import SentenceTransformer
+from transformers import SiglipProcessor, SiglipModel
 
-_model: Optional[SentenceTransformer] = None
+_processor: Optional[SiglipProcessor] = None
+_model: Optional[SiglipModel] = None
 _model_error: bool = False
 
 
-def _get_model() -> Optional[SentenceTransformer]:
-    global _model, _model_error
+def _get_model():
+    global _processor, _model, _model_error
     if _model is None and not _model_error:
         model_name = os.getenv("EMBEDDINGS_MODEL", "google/siglip-large-patch16-384")
         try:
             print(f"[MODEL] Loading {model_name}...")
             start_time = time()
-            _model = SentenceTransformer(model_name)
+            _processor = SiglipProcessor.from_pretrained(model_name)
+            _model = SiglipModel.from_pretrained(model_name)
             load_time = time() - start_time
             print(f"[MODEL] Loaded {model_name} in {load_time:.1f}s")
         except Exception as e:
             print(f"[ERROR] Failed to load model {model_name}: {e}")
-            print(f"        Make sure sentencepiece and protobuf are installed")
             _model_error = True
-            return None
-    return _model
+            return None, None
+    return _processor, _model
 
 
 def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
-    """Get embedding using local HuggingFace model only (1024-dim SigLIP)."""
+    """Get embedding using local HuggingFace SigLIP model (1024-dim)."""
     if not image_url or not str(image_url).strip():
         return None
 
-    model = _get_model()
-    if model is None:
+    processor, model = _get_model()
+    if model is None or processor is None:
         return None
 
     raw_url = str(image_url).strip()
@@ -85,8 +87,15 @@ def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
             resp = requests.get(raw_url, headers=headers, timeout=15)
             resp.raise_for_status()
             img = Image.open(BytesIO(resp.content)).convert("RGB")
-            vec = model.encode(img, normalize_embeddings=True)
-            return vec.tolist()
+
+            # Process image with SigLIP (requires both image and text inputs)
+            inputs = processor(images=img, text=[""], return_tensors="pt")
+            with torch.no_grad():
+                outputs = model(**inputs)
+                # Use image embeddings (1024-dim for large model)
+                embedding = outputs.image_embeds.squeeze().tolist()
+
+            return embedding
         except Exception as e:
             print(f"[ERROR] Local embedding failed: {str(e)[:80]}")
             print(f"        URL: {raw_url}")
