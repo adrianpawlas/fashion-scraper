@@ -267,6 +267,16 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
         try:
             product_data = {}
 
+            # Debug: show product element structure for first few products
+            if i < 2:
+                print(f"Product {i+1} element attrs: {list(product_elem.attrs.keys())[:10]}")
+                print(f"Product {i+1} classes: {product_elem.get('class', [])}")
+                print(f"Product {i+1} tag: {product_elem.name}")
+                print(f"Product {i+1} children tags: {[child.name for child in product_elem.find_all() if child.name][:5]}")
+                # Look for any img tags in the document near this product
+                all_imgs = product_elem.find_all('img')
+                print(f"Product {i+1} has {len(all_imgs)} img tags")
+
             # Extract each field using the selectors
             for field, selector in product_selectors.items():
                 # Check for dynamic URL construction first (before literal check)
@@ -297,14 +307,25 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                     img_elem = product_elem.select_one(selector)
                     if img_elem:
                         img_src = img_elem.get("src") or img_elem.get("data-src") or ""
+                        # Debug: show what we found
+                        if i < 2:
+                            print(f"Product {i+1} image src: '{img_src}'")
                         # Make relative URLs absolute
                         if img_src.startswith('//'):
                             img_src = f"https:{img_src}"
                         elif img_src.startswith('assets/') or img_src.startswith('/'):
-                            # Try to construct full URL from base
-                            base_url = url.split('/en_us/')[0] if '/en_us/' in url else url.rsplit('/', 1)[0]
+                            # Try to construct full URL from base (handle different URL patterns)
+                            if '/cz/en/' in url:
+                                base_url = url.split('/cz/en/')[0]
+                            elif '/en_us/' in url:
+                                base_url = url.split('/en_us/')[0]
+                            else:
+                                base_url = url.rsplit('/', 1)[0]
                             img_src = urljoin(base_url + '/', img_src)
                         product_data["image_url"] = img_src
+                    else:
+                        if i < 2:
+                            print(f"Product {i+1} image selector '{selector}' found no elements")
                 elif field == "price":
                     # Handle price extraction
                     price_elem = product_elem.select_one(selector)

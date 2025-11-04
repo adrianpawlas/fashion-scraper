@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 from typing import Dict, List
 
 from .config import load_env, load_sites_config, get_site_configs, get_default_headers, get_supabase_env
@@ -314,8 +315,6 @@ def main() -> None:
 			respect = False
 			break
 	session = PoliteSession(default_headers=headers, respect_robots=respect)
-
-	from datetime import datetime
 
 	total = 0
 	print(f"[{datetime.now().strftime('%H:%M:%S')}] Processing {len(sites)} sites: {[s.get('brand', 'Unknown') for s in sites]}")
