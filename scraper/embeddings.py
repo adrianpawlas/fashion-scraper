@@ -44,7 +44,7 @@ def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
 
     # Skip data URLs (base64 embedded images) - these are placeholders
     if raw_url.startswith("data:"):
-        print(f"[SKIP] Data URL placeholder: {raw_url[:50]}...")
+        print(f"[SKIP] Data URL placeholder - no embedding needed")
         return None
 
     if raw_url.startswith("//"):

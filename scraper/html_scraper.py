@@ -277,6 +277,51 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                 all_imgs = product_elem.find_all('img')
                 print(f"Product {i+1} has {len(all_imgs)} img tags")
 
+                # Look for JSON data in script tags that might contain product info
+                if hasattr(soup, 'find_all'):
+                    scripts = soup.find_all('script', type='application/json') or soup.find_all('script', string=lambda x: x and ('product' in x.lower() or 'item' in x.lower()))
+                    json_scripts = [s for s in scripts if s.string and len(s.string.strip()) > 100]
+                    print(f"Found {len(json_scripts)} potential JSON scripts with product data")
+
+                    # Try to extract product data from JSON scripts
+                    if json_scripts and not product_data.get('title'):  # Only if we haven't found title yet
+                        for script in json_scripts[:3]:  # Check first few scripts
+                            try:
+                                import json
+                                data = json.loads(script.string)
+                                # Look for product data structures
+                                if isinstance(data, dict):
+                                    # Try common product data patterns
+                                    products_data = data.get('products', data.get('items', data.get('productList', [])))
+                                    if isinstance(products_data, list) and products_data:
+                                        # Find product by ID
+                                        product_id = product_elem.get('data-product-id')
+                                        for prod in products_data:
+                                            if isinstance(prod, dict) and str(prod.get('id', prod.get('productId', ''))) == str(product_id):
+                                                # Extract available data
+                                                if prod.get('name') and not product_data.get('title'):
+                                                    product_data['title'] = prod['name']
+                                                if prod.get('description') and not product_data.get('description'):
+                                                    product_data['description'] = prod['description']
+                                                if prod.get('price') and not product_data.get('price'):
+                                                    # Handle price - might be nested
+                                                    if isinstance(prod['price'], dict):
+                                                        price_val = prod['price'].get('sale', prod['price'].get('original', prod['price'].get('value')))
+                                                    else:
+                                                        price_val = prod['price']
+                                                    if isinstance(price_val, (int, float)):
+                                                        product_data['price'] = float(price_val)
+                                                if prod.get('image', prod.get('imageUrl', prod.get('img'))) and not product_data.get('image_url'):
+                                                    img_url = prod.get('image', prod.get('imageUrl', prod.get('img')))
+                                                    if isinstance(img_url, str) and img_url.startswith('http'):
+                                                        product_data['image_url'] = img_url
+                                                    elif isinstance(img_url, str) and img_url.startswith('//'):
+                                                        product_data['image_url'] = f"https:{img_url}"
+                                                print(f"Extracted from JSON: title='{product_data.get('title', 'N/A')}', price={product_data.get('price', 'N/A')}, has_image={bool(product_data.get('image_url'))}")
+                                                break
+                            except Exception as e:
+                                pass  # Continue to next script
+
             # Extract each field using the selectors
             for field, selector in product_selectors.items():
                 # Check for dynamic URL construction first (before literal check)
@@ -346,20 +391,28 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                     if elem:
                         product_data[field] = elem.get_text(strip=True)
 
-            # Only add if we got at least an external_id
-            if product_data.get("external_id") or product_data.get("product_id"):
-                products.append(product_data)
-                if i < 3:  # Debug first 3 products
-                    try:
-                        print(f"Product {i+1} data: {product_data}")
-                    except UnicodeEncodeError:
-                        print(f"Product {i+1} data: [Unicode encoding error in product data]")
-            else:
+            # Ensure we have required fields
+            if not product_data.get("external_id") and not product_data.get("product_id"):
                 if i < 3:  # Debug first 3 failed extractions
                     try:
                         print(f"Product {i+1} failed - no external_id. Available data: {product_data}")
                     except UnicodeEncodeError:
                         print(f"Product {i+1} failed - no external_id. Available data: [Unicode encoding error]")
+                continue
+
+            # Provide defaults for required fields
+            if not product_data.get("title"):
+                product_data["title"] = f"Pull&Bear Product {product_data.get('external_id', 'Unknown')}"
+            if not product_data.get("image_url"):
+                # Provide a data URL placeholder image since database requires it
+                product_data["image_url"] = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg=="
+
+            products.append(product_data)
+            if i < 3:  # Debug first 3 products
+                try:
+                    print(f"Product {i+1} data: title='{product_data.get('title', 'N/A')}', price={product_data.get('price', 'N/A')}, has_image={bool(product_data.get('image_url'))}")
+                except UnicodeEncodeError:
+                    print(f"Product {i+1} data: [Unicode encoding error in product data]")
 
         except Exception as e:
             print(f"Error extracting product {i+1}: {e}")
