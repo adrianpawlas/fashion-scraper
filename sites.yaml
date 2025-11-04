@@ -78,7 +78,7 @@
       Sec-Fetch-User: "?1"
       Upgrade-Insecure-Requests: "1"
     use_browser: true
-    prewarm:
+      prewarm:
       - "https://www2.hm.com/en_us/"
       - "https://www2.hm.com/en_us/men.html"
 -
