@@ -270,12 +270,15 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 	else:
 		raise ValueError(f"Site {brand} missing 'api' or 'html' config")
 	if collected:
+		print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products, upserting to database...")
 		db.upsert_products(collected)
 		if sync:
+			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: syncing database (removing unseen products)...")
 			# Delete products from this (source, merchant, country) not seen in this run
 			seen_ids = [r.get("external_id") for r in collected if r.get("external_id")]
 			country = site.get("country") or ""
 			db.delete_missing_for_source_merchant_country(site.get("source", "scraper"), merchant, country, seen_ids)
+		print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: database operations completed")
 	return len(collected)
 
 
@@ -312,15 +315,22 @@ def main() -> None:
 			break
 	session = PoliteSession(default_headers=headers, respect_robots=respect)
 
+	from datetime import datetime
+
 	total = 0
-	print(f"Processing {len(sites)} sites: {[s.get('brand', 'Unknown') for s in sites]}")
-	for site in sites:
+	print(f"[{datetime.now().strftime('%H:%M:%S')}] Processing {len(sites)} sites: {[s.get('brand', 'Unknown') for s in sites]}")
+	for i, site in enumerate(sites):
 		brand = site.get("brand", "Unknown")
-		print(f"\n--- Processing {brand} ---")
+		print(f"\n[{datetime.now().strftime('%H:%M:%S')}] --- Processing {brand} --- ({i+1}/{len(sites)})")
+
+		start_time = datetime.now()
 		site_count = run_for_site(site, session, db, sync=args.sync, limit=args.limit)
-		print(f"{brand}: imported {site_count} products")
+		end_time = datetime.now()
+		duration = (end_time - start_time).total_seconds()
+
+		print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: imported {site_count} products ({duration:.1f}s)")
 		total += site_count
-	print(f"\nTotal: imported {total} products")
+	print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Total: imported {total} products")
 
 
 if __name__ == "__main__":
