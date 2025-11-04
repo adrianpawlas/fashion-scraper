@@ -19,6 +19,7 @@ jobs:
       USER_AGENT: ${{ secrets.USER_AGENT }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
       HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
+      EMBEDDINGS_MODEL: "BAAI/bge-large-en-v1.5"
 
     steps:
       - name: Checkout
