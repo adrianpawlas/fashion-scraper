@@ -38,15 +38,21 @@ def flatten_product(item: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, 
 
 def ingest_api(session: PoliteSession, endpoint: str, jmes_items: Any, field_map: Dict[str, Any], request_kwargs: Optional[Dict[str, Any]] = None, debug: bool = False) -> List[Dict[str, Any]]:
 	data = session.fetch_json(endpoint, **(request_kwargs or {}))
+	if debug:
+		print(f"Debug: API response keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
 	# Support list of fallback items paths: first that yields items wins
 	items_paths: List[str] = [jmes_items] if isinstance(jmes_items, str) else list(jmes_items or [])
 	items = []
 	for ip in items_paths or [""]:
 		try:
 			items = jmespath.search(ip, data) or []
+			if debug:
+				print(f"Debug: Tried items_path '{ip}', found {len(items)} items")
 			if items:
 				break
-		except Exception:
+		except Exception as e:
+			if debug:
+				print(f"Debug: Failed items_path '{ip}': {e}")
 			continue
 	products: List[Dict[str, Any]] = []
 	with_id = 0

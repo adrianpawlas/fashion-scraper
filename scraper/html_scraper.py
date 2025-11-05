@@ -285,41 +285,208 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
 
                     # Try to extract product data from JSON scripts
                     if json_scripts and not product_data.get('title'):  # Only if we haven't found title yet
-                        for script in json_scripts[:3]:  # Check first few scripts
+                        for script in json_scripts[:5]:  # Check more scripts
                             try:
                                 import json
-                                data = json.loads(script.string)
-                                # Look for product data structures
+                                script_content = script.string.strip()
+                                if i < 1 and len(script_content) < 500:  # Debug: show short scripts
+                                    print(f"Script content preview: {script_content[:200]}...")
+
+                                # Try to clean the script content - sometimes there's extra content
+                                original_content = script_content
+                                if script_content.startswith('window.') or '=' in script_content[:50]:
+                                    # Extract JSON part after assignment like "variable = {...}"
+                                    equals_pos = script_content.find('=')
+                                    if equals_pos >= 0:
+                                        script_content = script_content[equals_pos + 1:].strip()
+                                        # Remove trailing semicolon if present
+                                        if script_content.endswith(';'):
+                                            script_content = script_content[:-1].strip()
+
+                                # Try to find JSON object bounds
+                                json_start = script_content.find('{')
+                                if json_start >= 0:
+                                    script_content = script_content[json_start:]
+                                    # Find matching closing brace
+                                    brace_count = 0
+                                    end_pos = json_start
+                                    for j, char in enumerate(script_content):
+                                        if char == '{':
+                                            brace_count += 1
+                                        elif char == '}':
+                                            brace_count -= 1
+                                            if brace_count == 0:
+                                                end_pos = j + 1
+                                                break
+                                    script_content = script_content[:end_pos]
+
+                                if i < 1:
+                                    print(f"Attempting to parse cleaned content: {script_content[:100]}...")
+                                    if script_content != original_content[:len(script_content)]:
+                                        print(f"Content was modified from: {original_content[:100]}...")
+
+                                data = json.loads(script_content)
+
+                                # Debug: print JSON structure for first product
+                                if i < 1:
+                                    print(f"JSON structure keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+                                    if isinstance(data, dict):
+                                        for key, value in data.items():
+                                            if isinstance(value, list) and len(value) > 0:
+                                                print(f"  {key}: list with {len(value)} items")
+                                                if len(value) > 0 and isinstance(value[0], dict):
+                                                    print(f"    First item keys: {list(value[0].keys())[:5]}")
+
+                                # Look for product data structures - try multiple patterns including Pull&Bear specific
+                                products_data = None
                                 if isinstance(data, dict):
-                                    # Try common product data patterns
-                                    products_data = data.get('products', data.get('items', data.get('productList', [])))
-                                    if isinstance(products_data, list) and products_data:
-                                        # Find product by ID
-                                        product_id = product_elem.get('data-product-id')
-                                        for prod in products_data:
-                                            if isinstance(prod, dict) and str(prod.get('id', prod.get('productId', ''))) == str(product_id):
-                                                # Extract available data
-                                                if prod.get('name') and not product_data.get('title'):
-                                                    product_data['title'] = prod['name']
-                                                if prod.get('description') and not product_data.get('description'):
-                                                    product_data['description'] = prod['description']
-                                                if prod.get('price') and not product_data.get('price'):
-                                                    # Handle price - might be nested
-                                                    if isinstance(prod['price'], dict):
-                                                        price_val = prod['price'].get('sale', prod['price'].get('original', prod['price'].get('value')))
-                                                    else:
-                                                        price_val = prod['price']
-                                                    if isinstance(price_val, (int, float)):
+                                    # Try various common patterns
+                                    for key in ['products', 'items', 'productList', 'data', 'results', 'productGroups', 'bundleProductSummaries']:
+                                        if key in data and isinstance(data[key], list) and len(data[key]) > 0:
+                                            products_data = data[key]
+                                            if i < 1:
+                                                print(f"Found products in '{key}' with {len(products_data)} items")
+                                            break
+
+                                if products_data and isinstance(products_data, list):
+                                    # Find product by ID
+                                    product_id = product_elem.get('data-product-id')
+                                    if i < 1:
+                                        print(f"Looking for product ID: {product_id}")
+
+                                    for prod in products_data:
+                                        if isinstance(prod, dict):
+                                            # Try multiple ID field patterns
+                                            prod_id = prod.get('id') or prod.get('productId') or prod.get('product_id') or prod.get('sku')
+                                            if str(prod_id) == str(product_id):
+                                                if i < 1:
+                                                    print(f"Found matching product! Keys: {list(prod.keys())}")
+
+                                                # Extract title - Pull&Bear specific patterns
+                                                title = (prod.get('name') or prod.get('title') or prod.get('productName') or
+                                                        prod.get('nameEn'))
+                                                if title and not product_data.get('title'):
+                                                    product_data['title'] = title
+
+                                                # Extract description - Pull&Bear specific patterns
+                                                desc = None
+                                                if prod.get('detail') and isinstance(prod['detail'], dict):
+                                                    desc = (prod['detail'].get('longDescription') or
+                                                           prod['detail'].get('description') or
+                                                           prod['detail'].get('shortDescription'))
+                                                if not desc:
+                                                    desc = (prod.get('description') or prod.get('shortDescription') or
+                                                           prod.get('longDescription'))
+                                                if desc and not product_data.get('description'):
+                                                    product_data['description'] = desc
+
+                                                # Extract price - Pull&Bear specific patterns (prices in cents)
+                                                if not product_data.get('price'):
+                                                    price_val = None
+
+                                                    # Try getting price from sizes array (Pull&Bear structure)
+                                                    if prod.get('sizes') and isinstance(prod['sizes'], list) and prod['sizes']:
+                                                        first_size = prod['sizes'][0]
+                                                        if isinstance(first_size, dict) and 'price' in first_size:
+                                                            price_str = str(first_size['price'])
+                                                            try:
+                                                                # Convert from cents to actual price
+                                                                price_val = float(price_str) / 100
+                                                            except (ValueError, TypeError):
+                                                                pass
+
+                                                    # Fallback to other price patterns
+                                                    if price_val is None:
+                                                        price = prod.get('price')
+                                                        if isinstance(price, dict):
+                                                            # Handle nested price structures
+                                                            price_val = (price.get('salePrice') or price.get('currentPrice') or
+                                                                       price.get('price') or price.get('value'))
+                                                        elif isinstance(price, (int, float)):
+                                                            price_val = price
+                                                        elif isinstance(price, str):
+                                                            # Try to extract numeric price
+                                                            import re
+                                                            match = re.search(r'(\d+(?:\.\d{2})?)', price)
+                                                            price_val = float(match.group(1)) if match else None
+
+                                                    if price_val and isinstance(price_val, (int, float)):
                                                         product_data['price'] = float(price_val)
-                                                if prod.get('image', prod.get('imageUrl', prod.get('img'))) and not product_data.get('image_url'):
-                                                    img_url = prod.get('image', prod.get('imageUrl', prod.get('img')))
-                                                    if isinstance(img_url, str) and img_url.startswith('http'):
-                                                        product_data['image_url'] = img_url
-                                                    elif isinstance(img_url, str) and img_url.startswith('//'):
-                                                        product_data['image_url'] = f"https:{img_url}"
-                                                print(f"Extracted from JSON: title='{product_data.get('title', 'N/A')}', price={product_data.get('price', 'N/A')}, has_image={bool(product_data.get('image_url'))}")
+
+                                                # Extract image URL - Pull&Bear specific patterns
+                                                if not product_data.get('image_url'):
+                                                    img_candidates = []
+
+                                                    # Pull&Bear specific: check detail.colors[].image
+                                                    if (prod.get('detail') and isinstance(prod['detail'], dict) and
+                                                        prod['detail'].get('colors') and isinstance(prod['detail']['colors'], list)):
+                                                        for color in prod['detail']['colors']:
+                                                            if isinstance(color, dict) and color.get('image'):
+                                                                img_data = color['image']
+                                                                if isinstance(img_data, dict) and img_data.get('url'):
+                                                                    img_candidates.append(img_data['url'])
+
+                                                    # Also try xmedia structure (Pull&Bear)
+                                                    if prod.get('detail') and isinstance(prod['detail'], dict):
+                                                        xmedia = prod['detail'].get('xmedia')
+                                                        if xmedia and isinstance(xmedia, list) and xmedia:
+                                                            for media_set in xmedia:
+                                                                if isinstance(media_set, dict) and media_set.get('xmediaItems'):
+                                                                    items = media_set['xmediaItems']
+                                                                    if isinstance(items, list) and items:
+                                                                        for item in items:
+                                                                            if isinstance(item, dict) and item.get('medias'):
+                                                                                medias = item['medias']
+                                                                                if isinstance(medias, list) and medias:
+                                                                                    for media in medias:
+                                                                                        if isinstance(media, dict) and media.get('url'):
+                                                                                            img_candidates.append(media['url'])
+                                                                                        break
+                                                                            break
+                                                                break
+
+                                                    # Fallback to other patterns
+                                                    img_candidates.extend([
+                                                        prod.get('image'), prod.get('imageUrl'), prod.get('img'),
+                                                        prod.get('mainImage'), prod.get('primaryImage'),
+                                                        prod.get('picture'), prod.get('photo')
+                                                    ])
+
+                                                    # Also check nested image structures
+                                                    if prod.get('images') and isinstance(prod['images'], list) and prod['images']:
+                                                        img_candidates.append(prod['images'][0])
+                                                    if prod.get('media') and isinstance(prod['media'], list) and prod['media']:
+                                                        img_candidates.append(prod['media'][0])
+
+                                                    for img_candidate in img_candidates:
+                                                        if img_candidate:
+                                                            if isinstance(img_candidate, dict):
+                                                                # Handle nested image objects
+                                                                img_url = (img_candidate.get('url') or img_candidate.get('src') or
+                                                                         img_candidate.get('large') or img_candidate.get('medium'))
+                                                            else:
+                                                                img_url = img_candidate
+
+                                                            if isinstance(img_url, str):
+                                                                if img_url.startswith('http'):
+                                                                    product_data['image_url'] = img_url
+                                                                elif img_url.startswith('//'):
+                                                                    product_data['image_url'] = f"https:{img_url}"
+                                                                elif img_url.startswith('/'):
+                                                                    # Construct full URL
+                                                                    if '/cz/en/' in url:
+                                                                        base_url = url.split('/cz/en/')[0]
+                                                                    else:
+                                                                        base_url = url.rsplit('/', 1)[0]
+                                                                    product_data['image_url'] = base_url + img_url
+                                                                break
+
+                                                if i < 1:
+                                                    print(f"Extracted: title='{product_data.get('title', 'N/A')}', price={product_data.get('price', 'N/A')}, image='{product_data.get('image_url', 'N/A')[:50] if product_data.get('image_url') else 'N/A'}'")
                                                 break
                             except Exception as e:
+                                if i < 1:
+                                    print(f"JSON parsing error: {e}")
                                 pass  # Continue to next script
 
             # Extract each field using the selectors
