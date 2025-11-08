@@ -257,7 +257,8 @@
   respect_robots: false
   html:
     category_urls:
-      - "https://vuoriclothing.com/collections/mens"  # All men's products
+      - "https://vuoriclothing.com/collections/mens"   # All men's products
+      - "https://vuoriclothing.com/collections/womens" # All women's products
     # Extract products directly from category page
     product_selector: "[data-testid*='product'], .product, .product-item, .grid-item"
     product_selectors:
@@ -280,3 +281,4 @@
     prewarm:
       - "https://vuoriclothing.com/"
       - "https://vuoriclothing.com/collections/mens"
+      - "https://vuoriclothing.com/collections/womens"
