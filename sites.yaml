@@ -224,6 +224,7 @@
   html:
     category_urls:
       - "https://eu.representclo.com/collections/discover-all-products"  # All men's products
+      - "https://eu.representclo.com/collections/womens-discover-all"    # All women's products
     # Extract products directly from category page
     product_selector: "[class*='product'], .product, .product-item, .grid-item"
     product_selectors:
@@ -246,3 +247,4 @@
     prewarm:
       - "https://eu.representclo.com/"
       - "https://eu.representclo.com/collections/discover-all-products"
+      - "https://eu.representclo.com/collections/womens-discover-all"
