@@ -291,7 +291,8 @@
   respect_robots: false
   html:
     category_urls:
-      - "https://www.gymshark.com/collections/all-products/mens"  # All men's products
+      - "https://www.gymshark.com/collections/all-products/mens"   # All men's products
+      - "https://www.gymshark.com/collections/all-products/womens" # All women's products
     # Extract products directly from category page
     product_selector: "[data-testid*='product'], .product, .product-item, .grid-item"
     product_selectors:
@@ -314,3 +315,4 @@
     prewarm:
       - "https://www.gymshark.com/"
       - "https://www.gymshark.com/collections/all-products/mens"
+      - "https://www.gymshark.com/collections/all-products/womens"
