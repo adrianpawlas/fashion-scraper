@@ -109,7 +109,8 @@
   respect_robots: false
   html:
     category_urls:
-      - "https://scuffers.com/collections/hoodies"
+      - "https://scuffers.com/collections/all"      # All men's products
+      - "https://scuffers.com/collections/woman"    # All women's products
     # Extract products directly from category page
     product_selector: "[data-product-id], .product, .product-item, .grid-item"
     product_selectors:
@@ -120,7 +121,6 @@
       price: "[class*='price'], .price, [data-testid*='price']"
       image: "img[src*='scuffers'], img[alt*='product']"
       brand: "'Scuffers'"
-      gender: "'Men'"
       currency: "'EUR'"
       product_url: "[href*='/products/'], a[href*='/products/']"
     headers:
@@ -132,4 +132,5 @@
     use_browser: true  # Required for dynamic Shopify content
     prewarm:
       - "https://scuffers.com/"
-      - "https://scuffers.com/collections/hoodies"
+      - "https://scuffers.com/collections/all"
+      - "https://scuffers.com/collections/woman"
