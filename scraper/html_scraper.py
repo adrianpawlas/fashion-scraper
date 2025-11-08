@@ -270,6 +270,7 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
             # Debug: show product element structure for first few products
             if i < 2:
                 print(f"Product {i+1} element attrs: {list(product_elem.attrs.keys())[:10]}")
+                print(f"Product {i+1} href: {product_elem.get('href', 'N/A')}")
                 print(f"Product {i+1} classes: {product_elem.get('class', [])}")
                 print(f"Product {i+1} tag: {product_elem.name}")
                 print(f"Product {i+1} children tags: {[child.name for child in product_elem.find_all() if child.name][:5]}")
@@ -406,7 +407,6 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                                                             price_val = price
                                                         elif isinstance(price, str):
                                                             # Try to extract numeric price
-                                                            import re
                                                             match = re.search(r'(\d+(?:\.\d{2})?)', price)
                                                             price_val = float(match.group(1)) if match else None
 
@@ -510,6 +510,36 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                         product_data[field] = "".join(url_parts)
                     except Exception as e:
                         print(f"Error constructing {field}: {e}")
+                elif field == "product_url" and isinstance(selector, str):
+                    # Handle href extraction from current element or its descendants
+                    if selector == "href" or selector.startswith("[href"):
+                        # Extract href directly from current element (common for <a> tags)
+                        href = product_elem.get("href") or product_elem.get(":href")  # Support Alpine.js :href
+                        if href:
+                            if href.startswith('http'):
+                                product_data[field] = href
+                            else:
+                                product_data[field] = urljoin(url, href)
+                    else:
+                        # Use select_one to find element with href
+                        elem = product_elem.select_one(selector)
+                        if elem:
+                            href = elem.get("href") or elem.get(":href")  # Support Alpine.js :href
+                            if href:
+                                if href.startswith('http'):
+                                    product_data[field] = href
+                                else:
+                                    product_data[field] = urljoin(url, href)
+
+                    # If we got a product URL, try to extract product ID from it
+                    product_url = product_data.get("product_url")
+                    if product_url and '/products/' in product_url:
+                        # Extract product handle from URL like /products/product-handle
+                        product_handle = product_url.split('/products/')[-1].split('?')[0].split('/')[0]
+                        if product_handle and not product_data.get("external_id"):
+                            product_data["external_id"] = product_handle
+                        if product_handle and not product_data.get("product_id"):
+                            product_data["product_id"] = product_handle
                 # Check if this is a literal value (starts and ends with quotes)
                 elif isinstance(selector, str) and selector.startswith("'") and selector.endswith("'"):
                     # Literal value - remove quotes
