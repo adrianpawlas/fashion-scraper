@@ -66,6 +66,8 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	row["affiliate_url"] = raw.get("affiliate_url")
 	avail = raw.get("in_stock") if "in_stock" in raw else raw.get("availability")
 	row["availability"] = _normalize_availability(avail)
+	# Set second_hand to FALSE for all current brands (they are not second-hand marketplaces)
+	row["second_hand"] = False
 	# passthroughs if provided
 	for key in ("sku", "gtin_upc_ean", "category", "subcategory", "gender", "tags", "color_names"):
 		if raw.get(key) is not None:
