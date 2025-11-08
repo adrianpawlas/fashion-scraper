@@ -579,9 +579,26 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                             product_data["price"] = float(price_match.group(1))
                 elif selector.startswith("[data-") and selector.endswith("]"):
                     # Handle data attributes on current element
-                    attr_name = selector[1:-1]  # Remove brackets
+                    # Parse selector like [data-testid*='productCard'] to extract attribute name
+                    bracket_content = selector[1:-1]  # Remove brackets
+                    if '=' in bracket_content:
+                        # Handle selectors like [data-testid*='productCard']
+                        attr_part = bracket_content.split('=')[0]
+                        attr_name = attr_part.split('*')[0]  # Remove * if present
+                    else:
+                        attr_name = bracket_content
                     if attr_name in product_elem.attrs:
-                        product_data[field] = product_elem.attrs[attr_name]
+                        attr_value = product_elem.attrs[attr_name]
+                        # Special handling for Gymshark product IDs in data-testid
+                        if field in ["external_id", "product_id"] and attr_name == "data-testid" and "productCard" in str(attr_value) and "Wishlist" not in str(attr_value):
+                            # Extract product ID from data-testid like "plp-productCard-6806189605066-select"
+                            match = re.search(r'productCard-(\d+)', str(attr_value))
+                            if match:
+                                product_data[field] = match.group(1)
+                            else:
+                                product_data[field] = attr_value
+                        else:
+                            product_data[field] = attr_value
                 else:
                     # Handle other text fields
                     elem = product_elem.select_one(selector)
@@ -590,9 +607,14 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
 
             # Ensure we have required fields
             if not product_data.get("external_id") and not product_data.get("product_id"):
-                if i < 3:  # Debug first 3 failed extractions
+                if i < 5:  # Debug first 5 failed extractions
                     try:
-                        print(f"Product {i+1} failed - no external_id. Available data: {product_data}")
+                        print(f"Product {i+1} failed - no external_id. Element attrs: {list(product_elem.attrs.keys())[:5]}")
+                        if product_elem.get('data-testid'):
+                            print(f"  data-testid: {product_elem.get('data-testid')}")
+                        if product_elem.get('href'):
+                            print(f"  href: {product_elem.get('href')[:50]}...")
+                        print(f"  Available data: {product_data}")
                     except UnicodeEncodeError:
                         print(f"Product {i+1} failed - no external_id. Available data: [Unicode encoding error]")
                 continue

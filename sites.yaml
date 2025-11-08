@@ -260,7 +260,7 @@
       - "https://vuoriclothing.com/collections/mens"   # All men's products
       - "https://vuoriclothing.com/collections/womens" # All women's products
     # Extract products directly from category page
-    product_selector: "[data-testid*='product'], .product, .product-item, .grid-item"
+    product_selector: "[data-testid*='product']:not(button):not([aria-controls])"
     product_selectors:
       external_id: "[data-product-id]"
       product_id: "[data-product-id]"
@@ -294,10 +294,10 @@
       - "https://www.gymshark.com/collections/all-products/mens"   # All men's products
       - "https://www.gymshark.com/collections/all-products/womens" # All women's products
     # Extract products directly from category page
-    product_selector: "[data-testid*='product'], .product, .product-item, .grid-item"
+    product_selector: "[data-testid*='productCard']:not([data-testid*='Wishlist'])"
     product_selectors:
-      external_id: "[data-product-id]"
-      product_id: "[data-product-id]"
+      external_id: "[data-testid*='productCard']"
+      product_id: "[data-testid*='productCard']"
       title: "h3, h4, .title, .product-title, a[title]"
       description: "[class*='description'], .description"
       price: "[class*='price'], .price, [data-testid*='price']"
