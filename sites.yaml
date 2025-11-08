@@ -7,7 +7,24 @@
   respect_robots: false
   api:
     endpoints:
-      - "https://www.zara.com/us/en/category/2443335/products?ajax=true"
+      - "https://www.zara.com/us/en/category/2443335/products?ajax=true"  # Men's
+      - "https://www.zara.com/us/en/category/1251/products?ajax=true"     # Women's Shoes
+      - "https://www.zara.com/us/en/category/1299/products?ajax=true"     # Women's Skirts
+      - "https://www.zara.com/us/en/category/1362/products?ajax=true"     # Women's T-Shirts
+      - "https://www.zara.com/us/en/category/1217/products?ajax=true"     # Women's Shirts
+      - "https://www.zara.com/us/en/category/1335/products?ajax=true"     # Women's Trousers
+      - "https://www.zara.com/us/en/category/1119/products?ajax=true"     # Women's Jeans
+      - "https://www.zara.com/us/en/category/1152/products?ajax=true"     # Women's Knitwear
+      - "https://www.zara.com/us/en/category/1320/products?ajax=true"     # Women's Sweatshirts
+      - "https://www.zara.com/us/en/category/1061/products?ajax=true"     # Women's Co-ords
+      - "https://www.zara.com/us/en/category/1057/products?ajax=true"     # Women's Body
+      - "https://www.zara.com/us/en/category/1322/products?ajax=true"     # Women's Tops
+      - "https://www.zara.com/us/en/category/1066/products?ajax=true"     # Women's Dresses
+      - "https://www.zara.com/us/en/category/1055/products?ajax=true"     # Women's Blazers
+      - "https://www.zara.com/us/en/category/8322/products?ajax=true"     # Women's Cardigans & Sweaters
+      - "https://www.zara.com/us/en/category/4445/products?ajax=true"     # Women's Outerwear Winter
+      - "https://www.zara.com/us/en/category/1184/products?ajax=true"     # Women's Outerwear
+      - "https://www.zara.com/us/en/category/1114/products?ajax=true"     # Women's Jackets
     items_path:
       - "productGroups[].elements[].commercialComponents[]"
       - "productGroups[].elements[]"
@@ -39,6 +56,8 @@
     prewarm:
       - "https://www.zara.com/us/en/"
       - "https://www.zara.com/us/en/man-tshirts-l855.html"
+      - "https://www.zara.com/us/en/woman-tshirts-l1362.html"
+      - "https://www.zara.com/us/en/woman-dresses-l1066.html"
     product_url_template: "https://www.zara.com/us/en/{keyword}-p{id}.html?v1={discern_id}"
 -
   brand: H&M
