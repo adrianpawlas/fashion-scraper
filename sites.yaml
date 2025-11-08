@@ -248,3 +248,35 @@
       - "https://eu.representclo.com/"
       - "https://eu.representclo.com/collections/discover-all-products"
       - "https://eu.representclo.com/collections/womens-discover-all"
+-
+  brand: Vuori
+  merchant: Vuori
+  source: scraper
+  country: us
+  debug: true
+  respect_robots: false
+  html:
+    category_urls:
+      - "https://vuoriclothing.com/collections/mens"  # All men's products
+    # Extract products directly from category page
+    product_selector: "[data-testid*='product'], .product, .product-item, .grid-item"
+    product_selectors:
+      external_id: "[data-product-id]"
+      product_id: "[data-product-id]"
+      title: "h3, h4, .title, .product-title, a[title]"
+      description: "[class*='description'], .description"
+      price: "[class*='price'], .price, [data-testid*='price']"
+      image: "img[src*='vuoriclothing'], img[alt*='product']"
+      brand: "'Vuori'"
+      currency: "'USD'"
+      product_url: "[href*='/products/'], a[href*='/products/']"
+    headers:
+      User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      Accept-Language: "en-US,en;q=0.9"
+      Accept-Encoding: "gzip, deflate, br"
+      Cache-Control: "max-age=0"
+    use_browser: true  # Required for dynamic Shopify content
+    prewarm:
+      - "https://vuoriclothing.com/"
+      - "https://vuoriclothing.com/collections/mens"
