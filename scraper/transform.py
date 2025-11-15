@@ -34,7 +34,7 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 	Expected minimal input keys (from API/HTML):
 	- source: str (e.g., 'manual', 'api', 'awin')
-	- external_id: str (stable per merchant)
+	- external_id: str (stable per merchant) - will be used as the 'id' field
 	- merchant_name: str
 	- merchant_id: str|int (optional)
 	- title: str
@@ -45,59 +45,28 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	- image_url: str
 	- product_url: str
 	- affiliate_url: str (optional)
-	- availability: str|bool (optional)
 
 	All other columns are left null unless provided.
 	"""
 	row: Dict[str, Any] = {}
+	# Use external_id as the primary key 'id'
+	row["id"] = str(raw.get("external_id") or raw.get("product_id") or raw.get("product_url"))
 	row["source"] = raw.get("source") or "manual"
-	row["external_id"] = str(raw.get("external_id") or raw.get("product_id") or raw.get("product_url"))
-	row["merchant_name"] = raw.get("merchant") or raw.get("merchant_name")
-	if raw.get("merchant_id") is not None:
-		row["merchant_id"] = raw.get("merchant_id")
 	row["title"] = raw.get("title") or "Unknown title"
 	row["description"] = raw.get("description")
 	row["brand"] = raw.get("brand")
 	row["price"] = raw.get("price")
 	row["currency"] = raw.get("currency")
-	row["country"] = raw.get("country")
 	row["image_url"] = raw.get("image_url")
 	row["product_url"] = raw.get("product_url")
 	row["affiliate_url"] = raw.get("affiliate_url")
-	avail = raw.get("in_stock") if "in_stock" in raw else raw.get("availability")
-	row["availability"] = _normalize_availability(avail)
 	# Set second_hand to FALSE for all current brands (they are not second-hand marketplaces)
 	row["second_hand"] = False
-	# passthroughs if provided
-	for key in ("sku", "gtin_upc_ean", "category", "subcategory", "gender", "tags", "color_names"):
+	# passthroughs if provided (only include fields that exist in the new schema)
+	for key in ("category", "gender"):
 		if raw.get(key) is not None:
 			row[key] = raw.get(key)
 
-	# Normalize color_names to a flat list of strings
-	colors_val = row.get("color_names")
-	if isinstance(colors_val, str):
-		val = colors_val.strip()
-		row["color_names"] = ([val] if val else [])
-	elif isinstance(colors_val, list):
-		flat: List[str] = []
-		for c in colors_val:
-			if isinstance(c, list):
-				for s in c:
-					if isinstance(s, str) and s.strip():
-						flat.append(s.strip())
-			elif isinstance(c, str) and c.strip():
-				flat.append(c.strip())
-		# de-dupe preserving order
-		seen: Dict[str, bool] = {}
-		unique: List[str] = []
-		for s in flat:
-			key = s.lower()
-			if not seen.get(key):
-				seen[key] = True
-				unique.append(s)
-		row["color_names"] = unique
-	else:
-		row["color_names"] = []
 
 	# Normalize sizes: accept str, list[str], or nested lists → text (comma-separated)
 	size_val = raw.get("size") or raw.get("sizes") or raw.get("available_sizes")
@@ -167,45 +136,12 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 						row["price"] = num
 	except Exception:
 		pass
-	# If no color_names present, try extracting a trailing color token from description
-	try:
-		if not row.get("color_names") and isinstance(row.get("description"), str):
-			desc_text = row.get("description") or ""
-			m = re.search(r"(?:\s[-|]\s|\s*[\[(])([A-Za-z][A-Za-z\-/ ]{1,24})[)\]]?\s*$", desc_text)
-			if m:
-				candidate = m.group(1).strip()
-				if candidate:
-					row["color_names"] = [candidate]
-	except Exception:
-		pass
-
-	# Clean description by removing color tokens if present
-	try:
-		desc = row.get("description")
-		colors: List[str] = row.get("color_names") or []
-		if isinstance(desc, str) and isinstance(colors, list) and colors:
-			for c in [str(c).strip() for c in colors if isinstance(c, str) and str(c).strip()]:
-				# Remove the color word with word boundaries (case-insensitive)
-				pattern = re.compile(rf"\b{re.escape(c)}\b", re.IGNORECASE)
-				desc = pattern.sub("", desc)
-			# Remove common leftover separators at ends or doubled
-			desc = re.sub(r"\s*[-|]\s*$", "", desc)
-			desc = re.sub(r"^[\-|]\s*", "", desc)
-			desc = re.sub(r"\s{2,}", " ", desc)
-			desc = desc.strip("- |,;:()[] ")
-			if desc:
-				row["description"] = desc
-			else:
-				# if emptied, fallback to title
-				row["description"] = row.get("title")
-	except Exception:
-		pass
 
 	# Build metadata json: include base info, plus site/source-specific _meta and useful raw fields
 	try:
 		# Start with a minimal base so metadata is never empty
 		meta: Dict[str, Any] = {}
-		for k in ("source", "merchant_name", "country", "external_id"):
+		for k in ("source", "id"):
 			v = row.get(k)
 			if v not in (None, ""):
 				meta[k] = v

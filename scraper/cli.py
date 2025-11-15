@@ -276,7 +276,7 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 		if sync:
 			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: syncing database (removing unseen products)...")
 			# Delete products from this (source, merchant, country) not seen in this run
-			seen_ids = [r.get("external_id") for r in collected if r.get("external_id")]
+			seen_ids = [r.get("id") for r in collected if r.get("id")]
 			country = site.get("country") or ""
 			db.delete_missing_for_source_merchant_country(site.get("source", "scraper"), merchant, country, seen_ids)
 		print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: database operations completed")
