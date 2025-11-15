@@ -250,33 +250,54 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
     """
     Extract products directly from category page without visiting individual product pages.
     This is useful for sites that block product detail pages but allow category scraping.
+    Handles pagination automatically by checking for ?page=2, ?page=3, etc.
     """
-    html = _fetch_html(session, url, headers, use_browser)
-    if not html:
-        print(f"[ERROR] Failed to fetch HTML for {url}")
-        return []
+    all_products = []
+    page = 1
 
-    soup = BeautifulSoup(html, "lxml")
-    products = []
+    while True:
+        # Construct page URL
+        if page == 1:
+            page_url = url
+        else:
+            # Check if URL already has query parameters
+            if '?' in url:
+                page_url = f"{url}&page={page}"
+            else:
+                page_url = f"{url}?page={page}"
 
-    # Find all product containers
-    product_elements = soup.select(product_selector)
-    print(f"Found {len(product_elements)} product elements with selector: {product_selector}")
+        print(f"Processing {url} - page {page}: {page_url}")
 
-    for i, product_elem in enumerate(product_elements):
-        try:
-            product_data = {}
+        html = _fetch_html(session, url, headers, use_browser)
+        if not html:
+            print(f"[ERROR] Failed to fetch HTML for {page_url}")
+            break
 
-            # Debug: show product element structure for first few products
-            if i < 2:
-                print(f"Product {i+1} element attrs: {list(product_elem.attrs.keys())[:10]}")
-                print(f"Product {i+1} href: {product_elem.get('href', 'N/A')}")
-                print(f"Product {i+1} classes: {product_elem.get('class', [])}")
-                print(f"Product {i+1} tag: {product_elem.name}")
-                print(f"Product {i+1} children tags: {[child.name for child in product_elem.find_all() if child.name][:5]}")
-                # Look for any img tags in the document near this product
-                all_imgs = product_elem.find_all('img')
-                print(f"Product {i+1} has {len(all_imgs)} img tags")
+        soup = BeautifulSoup(html, "lxml")
+        products = []
+
+        # Find all product containers
+        product_elements = soup.select(product_selector)
+        print(f"Found {len(product_elements)} product elements with selector: {product_selector}")
+
+        if len(product_elements) == 0:
+            # No products found on this page, stop pagination
+            break
+
+        for i, product_elem in enumerate(product_elements):
+            try:
+                product_data = {}
+
+                # Debug: show product element structure for first few products
+                if i < 2:
+                    print(f"Product {i+1} element attrs: {list(product_elem.attrs.keys())[:10]}")
+                    print(f"Product {i+1} href: {product_elem.get('href', 'N/A')}")
+                    print(f"Product {i+1} classes: {product_elem.get('class', [])}")
+                    print(f"Product {i+1} tag: {product_elem.name}")
+                    print(f"Product {i+1} children tags: {[child.name for child in product_elem.find_all() if child.name][:5]}")
+                    # Look for any img tags in the document near this product
+                    all_imgs = product_elem.find_all('img')
+                    print(f"Product {i+1} has {len(all_imgs)} img tags")
 
                 # Look for JSON data in script tags that might contain product info
                 if hasattr(soup, 'find_all'):
@@ -489,155 +510,144 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                                     print(f"JSON parsing error: {e}")
                                 pass  # Continue to next script
 
-            # Extract each field using the selectors
-            for field, selector in product_selectors.items():
-                # Check for dynamic URL construction first (before literal check)
-                if field == "product_url" and isinstance(selector, str) and " + " in selector and "[data-" in selector:
-                    # Handle URL construction like "'https://example.com/' + [data-articlecode] + '.html'"
-                    try:
-                        parts = selector.split(" + ")
-                        url_parts = []
-                        for part in parts:
-                            part = part.strip()
-                            if part.startswith("'") and part.endswith("'"):
-                                url_parts.append(part[1:-1])  # Remove quotes
-                            elif part.startswith("[data-") and part.endswith("]"):
-                                attr_name = part[1:-1]  # Remove brackets
-                                if attr_name in product_elem.attrs:
-                                    url_parts.append(product_elem.attrs[attr_name])
+                # Extract each field using the selectors
+                for field, selector in product_selectors.items():
+                        # Check for dynamic URL construction first (before literal check)
+                        if field == "product_url" and isinstance(selector, str) and " + " in selector and "[data-" in selector:
+                            # Handle URL construction like "'https://example.com/' + [data-articlecode] + '.html'"
+                            try:
+                                    parts = selector.split(" + ")
+                                    url_parts = []
+                                    for part in parts:
+                                        part = part.strip()
+                                        if part.startswith("'") and part.endswith("'"):
+                                            url_parts.append(part[1:-1])  # Remove quotes
+                                        elif part.startswith("[data-") and part.endswith("]"):
+                                            attr_name = part[1:-1]  # Remove brackets
+                                            if attr_name in product_elem.attrs:
+                                                url_parts.append(product_elem.attrs[attr_name])
+                                            else:
+                                                url_parts.append("")  # Empty if attribute not found
+                                    product_data[field] = "".join(url_parts)
+                            except Exception as e:
+                                print(f"Error constructing {field}: {e}")
+                        elif field == "product_url" and isinstance(selector, str):
+                            # Handle href extraction from current element or its descendants
+                            if selector == "href" or selector.startswith("[href"):
+                                # Extract href directly from current element (common for <a> tags)
+                                href = product_elem.get("href") or product_elem.get(":href")  # Support Alpine.js :href
+                                if href:
+                                    if href.startswith('http'):
+                                        product_data[field] = href
+                                    else:
+                                        product_data[field] = urljoin(url, href)
                                 else:
-                                    url_parts.append("")  # Empty if attribute not found
-                        product_data[field] = "".join(url_parts)
-                    except Exception as e:
-                        print(f"Error constructing {field}: {e}")
-                elif field == "product_url" and isinstance(selector, str):
-                    # Handle href extraction from current element or its descendants
-                    if selector == "href" or selector.startswith("[href"):
-                        # Extract href directly from current element (common for <a> tags)
-                        href = product_elem.get("href") or product_elem.get(":href")  # Support Alpine.js :href
-                        if href:
-                            if href.startswith('http'):
-                                product_data[field] = href
-                            else:
-                                product_data[field] = urljoin(url, href)
-                    else:
-                        # Use select_one to find element with href
-                        elem = product_elem.select_one(selector)
-                        if elem:
-                            href = elem.get("href") or elem.get(":href")  # Support Alpine.js :href
-                            if href:
-                                if href.startswith('http'):
-                                    product_data[field] = href
-                                else:
-                                    product_data[field] = urljoin(url, href)
-
-                    # If we got a product URL, try to extract product ID from it
-                    product_url = product_data.get("product_url")
-                    if product_url and '/products/' in product_url:
-                        # Extract product handle from URL like /products/product-handle
-                        product_handle = product_url.split('/products/')[-1].split('?')[0].split('/')[0]
-                        if product_handle and not product_data.get("external_id"):
-                            product_data["external_id"] = product_handle
-                        if product_handle and not product_data.get("product_id"):
-                            product_data["product_id"] = product_handle
-                # Check if this is a literal value (starts and ends with quotes)
-                elif isinstance(selector, str) and selector.startswith("'") and selector.endswith("'"):
-                    # Literal value - remove quotes
-                    product_data[field] = selector[1:-1]
-                elif field == "image":
-                    # Handle image URLs specially
-                    img_elem = product_elem.select_one(selector)
-                    if img_elem:
-                        img_src = img_elem.get("src") or img_elem.get("data-src") or ""
-                        # Debug: show what we found
-                        if i < 2:
-                            print(f"Product {i+1} image src: '{img_src}'")
-                        # Make relative URLs absolute
-                        if img_src.startswith('//'):
-                            img_src = f"https:{img_src}"
-                        elif img_src.startswith('assets/') or img_src.startswith('/'):
-                            # Try to construct full URL from base (handle different URL patterns)
-                            if '/cz/en/' in url:
-                                base_url = url.split('/cz/en/')[0]
-                            elif '/en_us/' in url:
-                                base_url = url.split('/en_us/')[0]
-                            else:
-                                base_url = url.rsplit('/', 1)[0]
-                            img_src = urljoin(base_url + '/', img_src)
-                        product_data["image_url"] = img_src
-                    else:
-                        if i < 2:
-                            print(f"Product {i+1} image selector '{selector}' found no elements")
-                elif field == "price":
-                    # Handle price extraction
-                    price_elem = product_elem.select_one(selector)
-                    if price_elem:
-                        price_text = price_elem.get_text(strip=True)
-                        # Extract numeric price from text like "$39.99"
-                        price_match = re.search(r'(\d+(?:\.\d{2})?)', price_text)
-                        if price_match:
-                            product_data["price"] = float(price_match.group(1))
-                elif selector.startswith("[data-") and selector.endswith("]"):
-                    # Handle data attributes on current element
-                    # Parse selector like [data-testid*='productCard'] to extract attribute name
-                    bracket_content = selector[1:-1]  # Remove brackets
-                    if '=' in bracket_content:
-                        # Handle selectors like [data-testid*='productCard']
-                        attr_part = bracket_content.split('=')[0]
-                        attr_name = attr_part.split('*')[0]  # Remove * if present
-                    else:
-                        attr_name = bracket_content
-                    if attr_name in product_elem.attrs:
-                        attr_value = product_elem.attrs[attr_name]
-                        # Special handling for Gymshark product IDs in data-testid
-                        if field in ["external_id", "product_id"] and attr_name == "data-testid" and "productCard" in str(attr_value) and "Wishlist" not in str(attr_value):
-                            # Extract product ID from data-testid like "plp-productCard-6806189605066-select"
-                            match = re.search(r'productCard-(\d+)', str(attr_value))
-                            if match:
-                                product_data[field] = match.group(1)
-                            else:
-                                product_data[field] = attr_value
-                        else:
-                            product_data[field] = attr_value
-                else:
-                    # Handle other text fields
-                    elem = product_elem.select_one(selector)
-                    if elem:
-                        product_data[field] = elem.get_text(strip=True)
+                                    # Use select_one to find element with href
+                                    elem = product_elem.select_one(selector)
+                                    if elem:
+                                        href = elem.get("href") or elem.get(":href")  # Support Alpine.js :href
+                                        if href:
+                                            if href.startswith('http'):
+                                                product_data[field] = href
+                                            else:
+                                                product_data[field] = urljoin(url, href)
+                        # If we got a product URL, try to extract product ID from it
+                        product_url = product_data.get("product_url")
+                        if product_url and '/products/' in product_url:
+                            # Extract product handle from URL like /products/product-handle
+                            product_handle = product_url.split('/products/')[-1].split('?')[0].split('/')[0]
+                            if product_handle and not product_data.get("external_id"):
+                                product_data["external_id"] = product_handle
+                            if product_handle and not product_data.get("product_id"):
+                                product_data["product_id"] = product_handle
+                        # Check if this is a literal value (starts and ends with quotes)
+                        elif isinstance(selector, str) and selector.startswith("'") and selector.endswith("'"):
+                            # Literal value - remove quotes
+                            product_data[field] = selector[1:-1]
+                        elif field == "image":
+                            # Handle image URLs specially
+                            img_elem = product_elem.select_one(selector)
+                            if img_elem:
+                                img_src = img_elem.get("src") or img_elem.get("data-src") or ""
+                                # Debug: show what we found
+                                if i < 2:
+                                    print(f"Product {i+1} image src: '{img_src}'")
+                                # Make relative URLs absolute                                if img_src.startswith('//'):                                    img_src = f"https:{img_src}"                                    elif img_src.startswith('assets/') or img_src.startswith('/'):                                        # Try to construct full URL from base (handle different URL patterns)                                        if '/cz/en/' in url:                                            base_url = url.split('/cz/en/')[0]                                            elif '/en_us/' in url:                                                base_url = url.split('/en_us/')[0]                                                else:                                                    base_url = url.rsplit('/', 1)[0]                                                    img_src = urljoin(base_url + '/', img_src)                                                    product_data["image_url"] = img_src                                                    else:                                                        if i < 2:                                                            print(f"Product {i+1} image selector '{selector}' found no elements")                    elif field == "price":
+                        # Handle price extraction
+                        price_elem = product_elem.select_one(selector)
+                        if price_elem:
+                            price_text = price_elem.get_text(strip=True)
+                            # Extract numeric price from text like "$39.99"
+                            price_match = re.search(r'(\d+(?:\.\d{2})?)', price_text)
+                            if price_match:
+                                product_data["price"] = float(price_match.group(1))
+                    elif selector.startswith("[data-") and selector.endswith("]"):
+                        # Handle data attributes on current element
+                        # Parse selector like [data-testid*='productCard'] to extract attribute name
+                        bracket_content = selector[1:-1]  # Remove brackets
+                        if '=' in bracket_content:
+                            # Handle selectors like [data-testid*='productCard']
+                            attr_part = bracket_content.split('=')[0]
+                            attr_name = attr_part.split('*')[0]  # Remove * if present
+                            else:                                attr_name = bracket_content                        if attr_name in product_elem.attrs:
+                            attr_value = product_elem.attrs[attr_name]
+                            # Special handling for Gymshark product IDs in data-testid
+                            if field in ["external_id", "product_id"] and attr_name == "data-testid" and "productCard" in str(attr_value) and "Wishlist" not in str(attr_value):
+                                # Extract product ID from data-testid like "plp-productCard-6806189605066-select"
+                                match = re.search(r'productCard-(\d+)', str(attr_value))
+                                if match:
+                                        product_data[field] = match.group(1)
+                                    else:                                        product_data[field] = attr_value
+                                        else:                                            product_data[field] = attr_value                                            else:                                                # Handle other text fields                                                elem = product_elem.select_one(selector)                        if elem:
+                            product_data[field] = elem.get_text(strip=True)
 
             # Ensure we have required fields
             if not product_data.get("external_id") and not product_data.get("product_id"):
-                if i < 5:  # Debug first 5 failed extractions
+                    if i < 5:  # Debug first 5 failed extractions
+                        try:
+                            print(f"Product {i+1} failed - no external_id. Element attrs: {list(product_elem.attrs.keys())[:5]}")
+                            if product_elem.get('data-testid'):
+                                print(f"  data-testid: {product_elem.get('data-testid')}")
+                            if product_elem.get('href'):
+                                print(f"  href: {product_elem.get('href')[:50]}...")
+                            print(f"  Available data: {product_data}")
+                        except UnicodeEncodeError:
+                            print(f"Product {i+1} failed - no external_id. Available data: [Unicode encoding error]")
+                    continue
+
+                # Provide defaults for required fields
+                if not product_data.get("title"):
+                    product_data["title"] = f"Pull&Bear Product {product_data.get('external_id', 'Unknown')}"
+                if not product_data.get("image_url"):
+                    # Provide a data URL placeholder image since database requires it
+                    product_data["image_url"] = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg=="
+
+                products.append(product_data)
+                if i < 3:  # Debug first 3 products
                     try:
-                        print(f"Product {i+1} failed - no external_id. Element attrs: {list(product_elem.attrs.keys())[:5]}")
-                        if product_elem.get('data-testid'):
-                            print(f"  data-testid: {product_elem.get('data-testid')}")
-                        if product_elem.get('href'):
-                            print(f"  href: {product_elem.get('href')[:50]}...")
-                        print(f"  Available data: {product_data}")
+                        print(f"Product {i+1} data: title='{product_data.get('title', 'N/A')}', price={product_data.get('price', 'N/A')}, has_image={bool(product_data.get('image_url'))}")
                     except UnicodeEncodeError:
-                        print(f"Product {i+1} failed - no external_id. Available data: [Unicode encoding error]")
-                continue
-
-            # Provide defaults for required fields
-            if not product_data.get("title"):
-                product_data["title"] = f"Pull&Bear Product {product_data.get('external_id', 'Unknown')}"
-            if not product_data.get("image_url"):
-                # Provide a data URL placeholder image since database requires it
-                product_data["image_url"] = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg=="
-
-            products.append(product_data)
-            if i < 3:  # Debug first 3 products
-                try:
-                    print(f"Product {i+1} data: title='{product_data.get('title', 'N/A')}', price={product_data.get('price', 'N/A')}, has_image={bool(product_data.get('image_url'))}")
-                except UnicodeEncodeError:
-                    print(f"Product {i+1} data: [Unicode encoding error in product data]")
+                        print(f"Product {i+1} data: [Unicode encoding error in product data]")
 
         except Exception as e:
             print(f"Error extracting product {i+1}: {e}")
             continue
 
-    print(f"Successfully extracted {len(products)} products from {len(product_elements)} elements")
-    return products
+        # Add products from this page to the total
+        all_products.extend(products)
+
+        print(f"Successfully extracted {len(products)} products from page {page} ({len(product_elements)} elements)")
+        print(f"Total products so far: {len(all_products)}")
+
+        # Check if we should continue to next page
+        # Look for pagination links or assume max 10 pages to prevent infinite loops
+        if page >= 10:
+            print("Reached maximum page limit (10), stopping pagination")
+            break
+
+        page += 1
+
+    print(f"Pagination complete. Total extracted {len(all_products)} products from {page-1} pages")
+    return all_products
 
 

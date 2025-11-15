@@ -16,7 +16,7 @@ _model_error: bool = False
 def _get_model():
     global _processor, _model, _model_error
     if _model is None and not _model_error:
-        model_name = os.getenv("EMBEDDINGS_MODEL", "google/siglip-large-patch16-384")
+        model_name = os.getenv("EMBEDDINGS_MODEL", "Marqo/marqo-fashionSigLIP")
         try:
             print(f"[MODEL] Loading {model_name}...")
             start_time = time()
@@ -32,7 +32,7 @@ def _get_model():
 
 
 def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
-    """Get embedding using local HuggingFace SigLIP model (1024-dim)."""
+    """Get embedding using Marqo Fashion SigLIP model (768-dim, fashion-specialized)."""
     if not image_url or not str(image_url).strip():
         return None
 

@@ -7,7 +7,7 @@ from .http_client import PoliteSession
 from .db import SupabaseREST
 from .api_ingestor import ingest_api, discover_category_urls, discover_from_html
 from .transform import to_supabase_row
-from .html_scraper import scrape_category_for_links, scrape_product_page, scrape_category_for_products
+# from .html_scraper import scrape_category_for_links, scrape_product_page, scrape_category_for_products
 from .sitemap import fetch_sitemap_urls
 from .embeddings import get_image_embedding
 
