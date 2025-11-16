@@ -6,22 +6,24 @@ from io import BytesIO
 import requests
 import torch
 from PIL import Image
-from transformers import SiglipProcessor, SiglipModel
+from transformers import CLIPProcessor, CLIPModel
 
-_processor: Optional[SiglipProcessor] = None
-_model: Optional[SiglipModel] = None
+_processor: Optional[CLIPProcessor] = None
+_model: Optional[CLIPModel] = None
 _model_error: bool = False
 
 
 def _get_model():
     global _processor, _model, _model_error
     if _model is None and not _model_error:
-        model_name = os.getenv("EMBEDDINGS_MODEL", "Marqo/marqo-fashionSigLIP")
+        model_name = os.getenv("EMBEDDINGS_MODEL", "openai/clip-vit-base-patch32")
         try:
             print(f"[MODEL] Loading {model_name}...")
             start_time = time()
-            _processor = SiglipProcessor.from_pretrained(model_name)
-            _model = SiglipModel.from_pretrained(model_name)
+            _processor = CLIPProcessor.from_pretrained(model_name)
+            _model = CLIPModel.from_pretrained(model_name)
+            # Ensure CPU usage for consistency with HF endpoint
+            _model.to(torch.device("cpu"))
             load_time = time() - start_time
             print(f"[MODEL] Loaded {model_name} in {load_time:.1f}s")
         except Exception as e:
@@ -32,7 +34,7 @@ def _get_model():
 
 
 def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
-    """Get embedding using Marqo Fashion SigLIP model (768-dim, fashion-specialized)."""
+    """Get embedding using OpenAI CLIP model (512-dim, matching HF endpoint)."""
     if not image_url or not str(image_url).strip():
         return None
 
@@ -88,12 +90,23 @@ def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
             resp.raise_for_status()
             img = Image.open(BytesIO(resp.content)).convert("RGB")
 
-            # Process image with SigLIP (requires both image and text inputs)
-            inputs = processor(images=img, text=[""], return_tensors="pt")
+            # Process image with CLIP (no text inputs needed)
+            inputs = processor(images=img, return_tensors="pt")
+
+            # Ensure inputs are on CPU for consistency
+            device = torch.device("cpu")
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+
             with torch.no_grad():
-                outputs = model(**inputs)
-                # Use image embeddings (768-dim for fashion SigLIP)
-                embedding = outputs.image_embeds.squeeze().tolist()
+                # Use CLIP's get_image_features method for 512-dim embeddings
+                outputs = model.get_image_features(**inputs)
+                # outputs is [batch_size, 512] - take first (and only) item
+                embedding = outputs[0].cpu().numpy().tolist()
+
+            # Verify dimensions (should be exactly 512)
+            if len(embedding) != 512:
+                print(f"[ERROR] Embedding dimension mismatch: got {len(embedding)}, expected 512")
+                return None
 
             return embedding
         except Exception as e:

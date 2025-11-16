@@ -19,7 +19,7 @@ jobs:
       USER_AGENT: ${{ secrets.USER_AGENT }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
       HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
-      EMBEDDINGS_MODEL: "Marqo/marqo-fashionSigLIP"
+      EMBEDDINGS_MODEL: "openai/clip-vit-base-patch32"
 
     steps:
       - name: Checkout
