@@ -57,43 +57,55 @@ def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
                 "Authorization": f"Bearer {hf_token}"
             }
 
-            # First try: send image URL directly (some HF endpoints support this)
-            payload = {
-                "inputs": raw_url
+            # Download image and convert to base64 first
+            img_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
 
-            print(f"[EMBED] Requesting embedding from HF endpoint for: {raw_url[:60]}...")
-            resp = requests.post(hf_endpoint, headers=headers, json=payload, timeout=30)
+            # Special handling for Zara images
+            if "zara" in raw_url.lower():
+                img_headers["Referer"] = "https://www.zara.com/"
+                img_headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+                img_headers["Sec-Fetch-Dest"] = "image"
+                img_headers["Sec-Fetch-Mode"] = "no-cors"
+                img_headers["Sec-Fetch-Site"] = "same-site"
 
-            # If URL approach fails with 422 (Unprocessable Entity), try base64 approach
-            if resp.status_code == 422:
-                print("[EMBED] URL approach failed, trying base64 encoded image...")
+            img_resp = requests.get(raw_url, headers=img_headers, timeout=15)
+            img_resp.raise_for_status()
 
-                # Download image and convert to base64
-                img_headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
+            import base64
+            img_base64 = base64.b64encode(img_resp.content).decode('utf-8')
 
-                # Special handling for Zara images
-                if "zara" in raw_url.lower():
-                    img_headers["Referer"] = "https://www.zara.com/"
-                    img_headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-                    img_headers["Sec-Fetch-Dest"] = "image"
-                    img_headers["Sec-Fetch-Mode"] = "no-cors"
-                    img_headers["Sec-Fetch-Site"] = "same-site"
+            # Try different payload formats that HF endpoints commonly expect
+            payloads_to_try = [
+                # Format 1: Just base64 string
+                {"inputs": img_base64},
+                # Format 2: Array with image object
+                {"inputs": [{"image": img_base64}]},
+                # Format 3: Data URL format
+                {"inputs": f"data:image/jpeg;base64,{img_base64}"},
+                # Format 4: Array with data URL
+                {"inputs": [f"data:image/jpeg;base64,{img_base64}"]},
+            ]
 
-                img_resp = requests.get(raw_url, headers=img_headers, timeout=15)
-                img_resp.raise_for_status()
-
-                import base64
-                img_base64 = base64.b64encode(img_resp.content).decode('utf-8')
-
-                # Try with base64 encoded image
-                payload = {
-                    "inputs": f"data:image/jpeg;base64,{img_base64}"
-                }
-
+            resp = None
+            for i, payload in enumerate(payloads_to_try):
+                print(f"[EMBED] Trying payload format {i+1}/{len(payloads_to_try)} for: {raw_url[:60]}...")
                 resp = requests.post(hf_endpoint, headers=headers, json=payload, timeout=30)
+
+                # If we get a successful response (2xx), break out of the loop
+                if resp.status_code // 100 == 2:
+                    print(f"[EMBED] Success with format {i+1}")
+                    break
+
+                # If it's a 4xx error (client error), try the next format
+                # If it's a 5xx error (server error), we might want to retry later
+                if resp.status_code // 100 == 4:
+                    print(f"[EMBED] Format {i+1} failed with {resp.status_code}, trying next format...")
+                    continue
+                else:
+                    # For 5xx or other errors, break and let the retry logic handle it
+                    break
 
             resp.raise_for_status()
             result = resp.json()
