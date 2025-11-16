@@ -1,14 +1,43 @@
 import os
 from typing import Optional
-from time import sleep
+from time import sleep, time
 from io import BytesIO
 
 import requests
+import torch
+from PIL import Image
+from transformers import SiglipProcessor, SiglipModel
+
+_processor: Optional[SiglipProcessor] = None
+_model: Optional[SiglipModel] = None
+_model_error: bool = False
+
+
+def _get_model():
+    global _processor, _model, _model_error
+    if _model is None and not _model_error:
+        model_name = os.getenv("EMBEDDINGS_MODEL", "Marqo/marqo-fashionSigLIP")
+        try:
+            print(f"[MODEL] Loading {model_name}...")
+            start_time = time()
+            _processor = SiglipProcessor.from_pretrained(model_name)
+            _model = SiglipModel.from_pretrained(model_name)
+            load_time = time() - start_time
+            print(f"[MODEL] Loaded {model_name} in {load_time:.1f}s")
+        except Exception as e:
+            print(f"[ERROR] Failed to load model {model_name}: {e}")
+            _model_error = True
+            return None, None
+    return _processor, _model
 
 
 def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
-    """Get embedding using Hugging Face endpoint for Marqo Fashion SigLIP model."""
+    """Get embedding using Marqo Fashion SigLIP model (768-dim, fashion-specialized)."""
     if not image_url or not str(image_url).strip():
+        return None
+
+    processor, model = _get_model()
+    if model is None or processor is None:
         return None
 
     raw_url = str(image_url).strip()
@@ -35,104 +64,40 @@ def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
     if "{width}" in raw_url:
         raw_url = raw_url.replace("{width}", "800", 1)
 
-    # Get Hugging Face endpoint URL from environment
-    hf_endpoint = os.getenv("HF_EMBEDDINGS_ENDPOINT", "https://c2cs1z671bk7k5uf.us-east-1.aws.endpoints.huggingface.cloud")
-    hf_token = os.getenv("HF_TOKEN")  # Required: for authenticated endpoints
-
-    if not hf_token:
-        print("[ERROR] HF_TOKEN environment variable is required for Hugging Face endpoint authentication")
-        return None
-
     for attempt in range(max_retries):
         if attempt > 0:
             # Exponential backoff: 1s, 2s, 4s
             sleep_time = 2 ** (attempt - 1)
-            print(f"[RETRY] Hugging Face embedding attempt {attempt + 1}/{max_retries} after {sleep_time}s...")
+            print(f"[RETRY] Local embedding attempt {attempt + 1}/{max_retries} after {sleep_time}s...")
             sleep(sleep_time)
 
         try:
-            # Prepare request to Hugging Face endpoint
             headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {hf_token}"
-            }
-
-            # Download image and convert to base64 first
-            img_headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
 
             # Special handling for Zara images
             if "zara" in raw_url.lower():
-                img_headers["Referer"] = "https://www.zara.com/"
-                img_headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-                img_headers["Sec-Fetch-Dest"] = "image"
-                img_headers["Sec-Fetch-Mode"] = "no-cors"
-                img_headers["Sec-Fetch-Site"] = "same-site"
+                headers["Referer"] = "https://www.zara.com/"
+                headers["Accept"] = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+                headers["Sec-Fetch-Dest"] = "image"
+                headers["Sec-Fetch-Mode"] = "no-cors"
+                headers["Sec-Fetch-Site"] = "same-site"
 
-            img_resp = requests.get(raw_url, headers=img_headers, timeout=15)
-            img_resp.raise_for_status()
-
-            import base64
-            img_base64 = base64.b64encode(img_resp.content).decode('utf-8')
-
-            # Try different payload formats that HF endpoints commonly expect
-            payloads_to_try = [
-                # Format 1: Just base64 string
-                {"inputs": img_base64},
-                # Format 2: Array with image object
-                {"inputs": [{"image": img_base64}]},
-                # Format 3: Data URL format
-                {"inputs": f"data:image/jpeg;base64,{img_base64}"},
-                # Format 4: Array with data URL
-                {"inputs": [f"data:image/jpeg;base64,{img_base64}"]},
-            ]
-
-            resp = None
-            for i, payload in enumerate(payloads_to_try):
-                print(f"[EMBED] Trying payload format {i+1}/{len(payloads_to_try)} for: {raw_url[:60]}...")
-                resp = requests.post(hf_endpoint, headers=headers, json=payload, timeout=30)
-
-                # If we get a successful response (2xx), break out of the loop
-                if resp.status_code // 100 == 2:
-                    print(f"[EMBED] Success with format {i+1}")
-                    break
-
-                # If it's a 4xx error (client error), try the next format
-                # If it's a 5xx error (server error), we might want to retry later
-                if resp.status_code // 100 == 4:
-                    print(f"[EMBED] Format {i+1} failed with {resp.status_code}, trying next format...")
-                    continue
-                else:
-                    # For 5xx or other errors, break and let the retry logic handle it
-                    break
-
+            resp = requests.get(raw_url, headers=headers, timeout=15)
             resp.raise_for_status()
-            result = resp.json()
+            img = Image.open(BytesIO(resp.content)).convert("RGB")
 
-            # Handle different possible response formats from HF endpoints
-            if isinstance(result, list) and len(result) > 0:
-                # If it's a list, take the first item
-                embedding = result[0]
-            elif isinstance(result, dict):
-                # If it's a dict, try common keys
-                embedding = result.get("embeddings") or result.get("embedding") or result.get("vectors")
-                if isinstance(embedding, list) and len(embedding) > 0:
-                    embedding = embedding[0]
-            else:
-                embedding = result
+            # Process image with SigLIP (requires both image and text inputs)
+            inputs = processor(images=img, text=[""], return_tensors="pt")
+            with torch.no_grad():
+                outputs = model(**inputs)
+                # Use image embeddings (768-dim for fashion SigLIP)
+                embedding = outputs.image_embeds.squeeze().tolist()
 
-            # Ensure we have a list of floats
-            if isinstance(embedding, list) and all(isinstance(x, (int, float)) for x in embedding):
-                print(f"[EMBED] Successfully got {len(embedding)}-dim embedding")
-                return embedding
-            else:
-                print(f"[ERROR] Unexpected embedding format: {type(embedding)}")
-                return None
-
+            return embedding
         except Exception as e:
-            print(f"[ERROR] Hugging Face embedding failed: {str(e)[:80]}")
+            print(f"[ERROR] Local embedding failed: {str(e)[:80]}")
             print(f"        URL: {raw_url}")
-
-    print(f"[FAILED] All Hugging Face embedding attempts failed for: {image_url[:60]}")
+    print(f"[FAILED] All local embedding attempts failed for: {image_url[:60]}")
     return None

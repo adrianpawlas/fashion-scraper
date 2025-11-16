@@ -19,8 +19,7 @@ jobs:
       USER_AGENT: ${{ secrets.USER_AGENT }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
       HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
-      HF_EMBEDDINGS_ENDPOINT: "https://c2cs1z671bk7k5uf.us-east-1.aws.endpoints.huggingface.cloud"
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      EMBEDDINGS_MODEL: "Marqo/marqo-fashionSigLIP"
 
     steps:
       - name: Checkout
