@@ -19,7 +19,7 @@ jobs:
       USER_AGENT: ${{ secrets.USER_AGENT }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
       HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
-             EMBEDDINGS_MODEL: "google/siglip-base-patch16-384"
+      EMBEDDINGS_MODEL: "google/siglip-base-patch16-384"
 
     steps:
       - name: Checkout
