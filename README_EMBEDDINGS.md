@@ -1,17 +1,16 @@
 # Embedding Strategy for Fashion Scraper
 
-## ✅ Solution: CLIP Embeddings Matching HF Endpoint
+## ✅ Solution: SigLIP Vision-Language Embeddings
 
-**Local CLIP embeddings that exactly match our Hugging Face inference endpoint for consistent similarity search.**
+**Local SigLIP embeddings for high-quality fashion image understanding and similarity search.**
 
-### Local CLIP Embeddings (Required)
+### Local SigLIP Embeddings (Required)
 
 **Used for:** All scraping operations
-- Model: `openai/clip-vit-base-patch32` (512-dim CLIP)
+- Model: `google/siglip-base-patch16-384` (768-dim SigLIP)
 - Speed: ~1-3s per image (after model load)
-- Dimensions: 512 (exactly matches HF endpoint)
-- Quality: **Industry-standard vision model with text-image understanding**
-- Consistency: **Identical embeddings to HF endpoint (±0.001 precision)**
+- Dimensions: 768
+- Quality: **Advanced vision-language model optimized for image understanding**
 - Reliability: Works in GitHub Actions and local environments
 
 ---
@@ -22,7 +21,7 @@
 
 ```bash
 # .env or GitHub Actions secrets
-EMBEDDINGS_MODEL=openai/clip-vit-base-patch32  # 512-dim CLIP model (matches HF endpoint)
+EMBEDDINGS_MODEL=google/siglip-base-patch16-384  # 768-dim SigLIP model
 ```
 
 **Scraping time:** ~30-45 minutes for all products ✅
@@ -50,7 +49,7 @@ else:
     print("Failed to generate embedding")
 ```
 
-**Expected result:** 512-dimensional embedding vector (exactly matches HF endpoint).
+**Expected result:** 768-dimensional embedding vector.
 
 ---
 
@@ -73,5 +72,5 @@ else:
 
 ## 🎉 Bottom Line
 
-**Local CLIP embeddings provide industry-standard image understanding for fashion products with perfect consistency to our HF endpoint!** 🚀
+**Local SigLIP embeddings provide advanced vision-language understanding for fashion products with excellent performance and reliability!** 🚀
 
