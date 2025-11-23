@@ -62,10 +62,46 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	row["affiliate_url"] = raw.get("affiliate_url")
 	# Set second_hand to FALSE for all current brands (they are not second-hand marketplaces)
 	row["second_hand"] = False
-	# passthroughs if provided (only include fields that exist in the new schema)
-	for key in ("category", "gender"):
-		if raw.get(key) is not None:
-			row[key] = raw.get(key)
+
+	# Normalize gender to "men" or "women"
+	raw_gender = raw.get("gender")
+	if raw_gender:
+		gender_str = str(raw_gender).strip().lower()
+		# Check for women first (since "woman" contains "man")
+		if any(word in gender_str for word in ["women", "female", "woman", "lady", "girl"]):
+			row["gender"] = "women"
+		elif any(word in gender_str for word in ["men", "male", "man", "guy", "boy"]):
+			row["gender"] = "men"
+		else:
+			row["gender"] = raw_gender  # Keep original if doesn't match
+
+	# Category detection based on Zara category IDs
+	category_id = None
+	endpoint = raw.get("_meta", {}).get("endpoint")
+	if endpoint:
+		# Extract category ID from endpoint URL like "https://www.zara.com/us/en/category/2417728/products?ajax=true"
+		import re
+		match = re.search(r'/category/(\d+)/', str(endpoint))
+		if match:
+			category_id = match.group(1)
+
+	# Accessory categories (bags, jewelry, lingerie, perfumes, beauty)
+	accessory_category_ids = {
+		"2417728",  # women's bags
+		"2418989",  # women's accessories & jewelry
+		"2419807",  # women's lingerie
+		"2419833",  # women's perfumes
+		"2418919",  # women's beauty
+		"2419160",  # women's shoes (footwear)
+	}
+
+	if category_id in accessory_category_ids:
+		if category_id == "2419160":
+			row["category"] = "footwear"
+		else:
+			row["category"] = "accessory"
+	else:
+		row["category"] = None  # Clothing items get null category
 
 
 	# Normalize sizes: accept str, list[str], or nested lists → text (comma-separated)

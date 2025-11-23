@@ -7,30 +7,32 @@
   respect_robots: false
   api:
     endpoints:
-      - "https://www.zara.com/us/en/category/2443335/products?ajax=true"  # Men's - WORKING
-      # Women's categories below are not working - need to find current category IDs
-      # - "https://www.zara.com/us/en/category/1251/products?ajax=true"     # Women's Shoes
-      # - "https://www.zara.com/us/en/category/1299/products?ajax=true"     # Women's Skirts
-      # - "https://www.zara.com/us/en/category/1362/products?ajax=true"     # Women's T-Shirts
-      # - "https://www.zara.com/us/en/category/1217/products?ajax=true"     # Women's Shirts
-      # - "https://www.zara.com/us/en/category/1335/products?ajax=true"     # Women's Trousers
-      # - "https://www.zara.com/us/en/category/1119/products?ajax=true"     # Women's Jeans
-      # - "https://www.zara.com/us/en/category/1152/products?ajax=true"     # Women's Knitwear
-      # - "https://www.zara.com/us/en/category/1320/products?ajax=true"     # Women's Sweatshirts
-      # - "https://www.zara.com/us/en/category/1061/products?ajax=true"     # Women's Co-ords
-      # - "https://www.zara.com/us/en/category/1057/products?ajax=true"     # Women's Body
-      # - "https://www.zara.com/us/en/category/1322/products?ajax=true"     # Women's Tops
-      # - "https://www.zara.com/us/en/category/1066/products?ajax=true"     # Women's Dresses
-      # - "https://www.zara.com/us/en/category/1055/products?ajax=true"     # Women's Blazers
-      # - "https://www.zara.com/us/en/category/8322/products?ajax=true"     # Women's Cardigans & Sweaters
-      # - "https://www.zara.com/us/en/category/4445/products?ajax=true"     # Women's Outerwear Winter
-      # - "https://www.zara.com/us/en/category/1184/products?ajax=true"     # Women's Outerwear
-      # - "https://www.zara.com/us/en/category/1114/products?ajax=true"     # Women's Jackets
-      # - "https://www.zara.com/us/en/category/1323/products?ajax=true"     # Women's Shorts
-      # - "https://www.zara.com/us/en/category/1064/products?ajax=true"     # Women's Jumpsuits
-      # - "https://www.zara.com/us/en/category/1185/products?ajax=true"     # Women's Bags
-      # - "https://www.zara.com/us/en/category/1186/products?ajax=true"     # Women's Accessories
-      # - "https://www.zara.com/us/en/category/1183/products?ajax=true"     # Women's Beauty
+      - "https://www.zara.com/us/en/category/2443335/products?ajax=true" #men's all products category
+      - "https://www.zara.com/us/en/category/2418883/products?ajax=true" # women's leather category
+      - "https://www.zara.com/us/en/category/2419032/products?ajax=true" # women's coats category
+      - "https://www.zara.com/us/en/category/2419045/products?ajax=true" # women's puffers category
+      - "https://www.zara.com/us/en/category/2420306/products?ajax=true" # women's knitwear category
+      - "https://www.zara.com/us/en/category/2420942/products?ajax=true" # women's blazers category
+      - "https://www.zara.com/us/en/category/2420896/products?ajax=true" # women's dresses & jumpsuits category
+      - "https://www.zara.com/us/en/category/2419940/products?ajax=true" # women's tops category
+      - "https://www.zara.com/us/en/category/2420490/products?ajax=true" # women's bodysuits category
+      - "https://www.zara.com/us/en/category/2420285/products?ajax=true" # women's co-ords category
+      - "https://www.zara.com/us/en/category/2419844/products?ajax=true" # women's cardigans & sweaters category
+      - "https://www.zara.com/us/en/category/2420795/products?ajax=true" # women's trousers category
+      - "https://www.zara.com/us/en/category/2420369/products?ajax=true" # women's shirts category
+      - "https://www.zara.com/us/en/category/2417772/products?ajax=true" # women's jackets category
+      - "https://www.zara.com/us/en/category/2467841/products?ajax=true" # women's sweatshirts & sweatpants category
+      - "https://www.zara.com/us/en/category/2419185/products?ajax=true" # women's jeans category
+      - "https://www.zara.com/us/en/category/2420417/products?ajax=true" # women's tshirts category
+      - "https://www.zara.com/us/en/category/2420454/products?ajax=true" # women's skirts & shorts category
+      - "https://www.zara.com/us/en/category/2419160/products?ajax=true" # women's shoes category
+      - "https://www.zara.com/us/en/category/2417728/products?ajax=true" # women's bags category
+      - "https://www.zara.com/us/en/category/2418989/products?ajax=true" # women's accessories & jewelry category
+      - "https://www.zara.com/us/en/category/2419807/products?ajax=true" # women's lingerie category
+      - "https://www.zara.com/us/en/category/2419833/products?ajax=true" # women's perfumes category
+      - "https://www.zara.com/us/en/category/2418919/products?ajax=true" # women's beauty category
+#      - "https://www.zara.com/us/en/category/2527945/products?ajax=true" # furniture category (for future maybe)
+#      - "https://www.zara.com/us/en/category/2524964/products?ajax=true" # bed linen category (for future maybe)
     items_path:
       - "productGroups[].elements[].commercialComponents[]"
       - "productGroups[].elements[]"
