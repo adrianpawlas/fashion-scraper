@@ -47,14 +47,16 @@ def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
         print(f"[SKIP] Data URL placeholder - no embedding needed")
         return None
 
-    # Skip video files (.m3u8)
-    if '.m3u8' in raw_url:
-        print(f"[SKIP] Video file (.m3u8) - not an image")
+    # Skip video files and non-image content
+    # Check for video extensions anywhere in the URL
+    video_patterns = ['.m3u8', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '/video.mp4', '/video.', 'video.mp4']
+    if any(pattern in raw_url.lower() for pattern in video_patterns):
+        print(f"[SKIP] Video file detected - not an image")
         return None
 
-    # Skip other non-image file types
-    non_image_extensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.html', '.htm', '.json', '.xml', '.txt', '.css', '.js']
-    if any(raw_url.lower().endswith(ext) for ext in non_image_extensions):
+    # Skip other non-image file types (check for extensions in the URL)
+    non_image_extensions = ['.html', '.htm', '.json', '.xml', '.txt', '.css', '.js', '.pdf', '.zip', '.rar']
+    if any(ext in raw_url.lower() for ext in non_image_extensions):
         print(f"[SKIP] Non-image file type - not an image")
         return None
 
