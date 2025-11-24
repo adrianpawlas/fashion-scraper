@@ -47,6 +47,27 @@ def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
         print(f"[SKIP] Data URL placeholder - no embedding needed")
         return None
 
+    # Skip video files (.m3u8)
+    if '.m3u8' in raw_url:
+        print(f"[SKIP] Video file (.m3u8) - not an image")
+        return None
+
+    # Skip other non-image file types
+    non_image_extensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.html', '.htm', '.json', '.xml', '.txt', '.css', '.js']
+    if any(raw_url.lower().endswith(ext) for ext in non_image_extensions):
+        print(f"[SKIP] Non-image file type - not an image")
+        return None
+
+    # Skip obviously incomplete URLs (Zara images should have longer paths)
+    if "zara" in raw_url.lower():
+        # Zara image URLs should be much longer than this
+        if len(raw_url) < 80:
+            print(f"[SKIP] Incomplete Zara URL (too short: {len(raw_url)} chars)")
+            return None
+        # Should contain multiple path segments
+        if raw_url.count('/') < 6:
+            print(f"[SKIP] Incomplete Zara URL (too few path segments: {raw_url.count('/')}")
+
     if raw_url.startswith("//"):
         raw_url = "https:" + raw_url
 
