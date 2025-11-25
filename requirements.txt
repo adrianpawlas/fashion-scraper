@@ -10,3 +10,5 @@ protobuf>=3.20.0
 Pillow>=10.4.0
 playwright>=1.40.0
 supabase>=2.0.0
+transformers>=4.35.0
+torch>=2.0.0
