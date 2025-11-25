@@ -78,7 +78,16 @@ class SupabaseREST:
 			chunk = normalized_products[i:i + chunk_size]
 			resp = self.session.post(endpoint, headers=headers, data=json.dumps(chunk), timeout=60)
 			if resp.status_code not in (200, 201, 204):
-				raise RuntimeError(f"Supabase upsert failed: {resp.status_code} {resp.text}")
+				error_msg = f"Supabase upsert failed: {resp.status_code} {resp.text}"
+
+				# Provide more helpful error messages for common Supabase issues
+				if "Edge function URL not configured" in resp.text:
+					error_msg += "\n\n💡 SOLUTION: Configure Edge Functions in your Supabase dashboard (Project Settings → Edge Functions) or check database triggers/policies that call Edge Functions."
+
+				elif "Could not find the" in resp.text and "column" in resp.text:
+					error_msg += "\n\n💡 SOLUTION: Your database schema doesn't match the expected columns. Check your products table schema and run any pending migrations."
+
+				raise RuntimeError(error_msg)
 
 	def delete_missing_for_source(self, source: str, current_ids: List[str]) -> None:
 		"""Delete products for a given source whose id is not in the provided list.
