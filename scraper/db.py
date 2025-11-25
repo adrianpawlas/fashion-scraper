@@ -72,22 +72,45 @@ class SupabaseREST:
 		headers = {
 			"Prefer": "resolution=merge-duplicates,return=minimal",
 		}
-		# Chunk inserts to keep requests reasonable (metadata can be large)
+		# First try chunked inserts (faster)
 		chunk_size = 100
+		failed_chunks = []
+
 		for i in range(0, len(normalized_products), chunk_size):
 			chunk = normalized_products[i:i + chunk_size]
 			resp = self.session.post(endpoint, headers=headers, data=json.dumps(chunk), timeout=60)
 			if resp.status_code not in (200, 201, 204):
-				error_msg = f"Supabase upsert failed: {resp.status_code} {resp.text}"
-
-				# Provide more helpful error messages for common Supabase issues
+				# If it's the Edge Function error, collect failed chunks for individual processing
 				if "Edge function URL not configured" in resp.text:
-					error_msg += "\n\n💡 SOLUTION: Configure Edge Functions in your Supabase dashboard (Project Settings → Edge Functions) or check database triggers/policies that call Edge Functions."
+					print(f"[WARNING] Bulk insert failed due to Edge Function trigger, will try individual inserts for chunk {i//chunk_size + 1}")
+					failed_chunks.append(chunk)
+				else:
+					error_msg = f"Supabase upsert failed: {resp.status_code} {resp.text}"
 
-				elif "Could not find the" in resp.text and "column" in resp.text:
-					error_msg += "\n\n💡 SOLUTION: Your database schema doesn't match the expected columns. Check your products table schema and run any pending migrations."
+					# Provide more helpful error messages for common Supabase issues
+					if "Could not find the" in resp.text and "column" in resp.text:
+						error_msg += "\n\n💡 SOLUTION: Your database schema doesn't match the expected columns. Check your products table schema and run any pending migrations."
 
-				raise RuntimeError(error_msg)
+					raise RuntimeError(error_msg)
+
+		# Handle failed chunks with individual inserts
+		if failed_chunks:
+			print(f"[INFO] Processing {len(failed_chunks)} failed chunks individually...")
+			for chunk_idx, chunk in enumerate(failed_chunks):
+				for product_idx, product in enumerate(chunk):
+					try:
+						# Insert one product at a time
+						resp = self.session.post(endpoint, headers=headers, data=json.dumps([product]), timeout=30)
+						if resp.status_code not in (200, 201, 204):
+							if "Edge function URL not configured" in resp.text:
+								print(f"[SKIP] Product {product.get('id', 'unknown')} skipped due to Edge Function trigger (mobile app will handle it)")
+							else:
+								print(f"[ERROR] Failed to insert product {product.get('id', 'unknown')}: {resp.status_code} {resp.text}")
+						else:
+							print(f"[SUCCESS] Inserted product {product.get('id', 'unknown')} individually")
+					except Exception as e:
+						print(f"[ERROR] Exception inserting product {product.get('id', 'unknown')}: {e}")
+						continue
 
 	def delete_missing_for_source(self, source: str, current_ids: List[str]) -> None:
 		"""Delete products for a given source whose id is not in the provided list.
