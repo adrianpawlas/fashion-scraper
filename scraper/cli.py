@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from .config import load_env, load_sites_config, get_site_configs, get_default_headers, get_supabase_env
 from .http_client import PoliteSession
-from .db import SupabaseREST
+from .db import SupabaseDB
 from .api_ingestor import ingest_api, discover_category_urls, discover_from_html
 from .transform import to_supabase_row
 # from .html_scraper import scrape_category_for_links, scrape_product_page, scrape_category_for_products
@@ -12,7 +12,7 @@ from .sitemap import fetch_sitemap_urls
 from .embeddings import get_image_embedding
 
 
-def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: bool = False, limit: int = 0, dry_run: bool = False) -> int:
+def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool = False, limit: int = 0, dry_run: bool = False) -> int:
 	brand = site.get("brand", "Unknown")
 	merchant = site.get("merchant", brand)
 	dbg = bool(site.get("debug"))
@@ -268,14 +268,31 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 				if emb is not None:
 					row["embedding"] = emb
 				collected.append(row)
-	else:
-		raise ValueError(f"Site {brand} missing 'api' or 'html' config")
-	if collected:
-		if dry_run:
-			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products (DRY RUN - skipping database operations)")
-		else:
-			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products, upserting to database...")
-			db.upsert_products(collected)
+			else:
+				raise ValueError(f"Site {brand} missing 'api' or 'html' config")
+			if collected:
+				if dry_run:
+					print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products (DRY RUN - skipping database operations)")
+				else:
+					print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products, generating embeddings...")
+
+					# Generate embeddings for products (like your working scraper)
+					for product in collected:
+						image_url = product.get('image_url')
+						if image_url:
+							embedding = get_image_embedding(image_url)
+							if embedding:
+								product['embedding'] = embedding
+								print(f"[EMBEDDING] Generated for: {product.get('title', 'Unknown')[:50]}")
+							else:
+								print(f"[SKIP] No embedding for: {product.get('title', 'Unknown')[:50]}")
+
+					print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products, upserting to database...")
+					success = db.upsert_products(collected)
+					if not success:
+						print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: WARNING - database upsert failed")
+					else:
+						print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: database upsert completed successfully")
 			if sync:
 				print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: syncing database (removing unseen products)...")
 				# Delete products from this (source, merchant, country) not seen in this run
@@ -298,7 +315,7 @@ def main() -> None:
 
 	load_env()
 	supa_env = get_supabase_env()
-	db = SupabaseREST(url=supa_env["url"], key=supa_env["key"])
+	db = SupabaseDB()
 
 	# Handle migration first
 	if args.migrate:

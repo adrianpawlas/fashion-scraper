@@ -48,17 +48,27 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 	All other columns are left null unless provided.
 	"""
+	import hashlib
+
 	row: Dict[str, Any] = {}
-	# Use external_id as the primary key 'id'
-	row["id"] = str(raw.get("external_id") or raw.get("product_id") or raw.get("product_url"))
-	row["source"] = raw.get("source") or "manual"
+
+	# Generate deterministic ID using source + product_url (matching your working database.py)
+	source = raw.get("source") or "zara"
+	product_url = raw.get("product_url")
+	if source and product_url:
+		id_string = f"{source}:{product_url}"
+		row["id"] = hashlib.sha256(id_string.encode('utf-8')).hexdigest()
+	else:
+		row["id"] = str(raw.get("external_id") or raw.get("product_id") or raw.get("product_url"))
+
+	row["source"] = source
 	row["title"] = raw.get("title") or "Unknown title"
 	row["description"] = raw.get("description")
 	row["brand"] = raw.get("brand")
 	row["price"] = raw.get("price")
-	row["currency"] = raw.get("currency")
+	row["currency"] = raw.get("currency", "USD")
 	row["image_url"] = raw.get("image_url")
-	row["product_url"] = raw.get("product_url")
+	row["product_url"] = product_url
 	row["affiliate_url"] = raw.get("affiliate_url")
 	# Set second_hand to FALSE for all current brands (they are not second-hand marketplaces)
 	row["second_hand"] = False
@@ -175,26 +185,19 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 	# Build metadata json: include base info, plus site/source-specific _meta and useful raw fields
 	try:
-		# Start with a minimal base so metadata is never empty
 		meta: Dict[str, Any] = {}
-		for k in ("source", "id"):
-			v = row.get(k)
-			if v not in (None, ""):
-				meta[k] = v
-		if isinstance(raw.get("_meta"), dict):
-			meta.update(raw["_meta"])  # type: ignore[arg-type]
-		# include helpful raw context when present
-		for k in ("_raw_item", "_raw_html_len", "seo", "detail", "xmedia"):
-			if raw.get(k) is not None:
-				meta[k] = raw.get(k)
-		# attach original price/currency fields pre-normalization when available
-		if raw.get("price") is not None and "original_price" not in meta:
-			meta["original_price"] = raw.get("price")
-		if raw.get("currency") is not None and "original_currency" not in meta:
-			meta["original_currency"] = raw.get("currency")
-		row["metadata"] = meta
+		if raw.get("merchant_name"):
+			meta["merchant_name"] = raw.get("merchant_name")
+		if raw.get("country"):
+			meta["country"] = raw.get("country")
+		if raw.get("original_currency"):
+			meta["original_currency"] = raw.get("original_currency")
+		if meta:
+			import json
+			row["metadata"] = json.dumps(meta)
 	except Exception:
 		pass
+
 	return row
 
 
