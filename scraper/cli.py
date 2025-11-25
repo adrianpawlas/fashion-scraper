@@ -12,7 +12,7 @@ from .sitemap import fetch_sitemap_urls
 from .embeddings import get_image_embedding
 
 
-def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: bool = False, limit: int = 0) -> int:
+def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: bool = False, limit: int = 0, dry_run: bool = False) -> int:
 	brand = site.get("brand", "Unknown")
 	merchant = site.get("merchant", brand)
 	dbg = bool(site.get("debug"))
@@ -271,15 +271,18 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseREST, sync: boo
 	else:
 		raise ValueError(f"Site {brand} missing 'api' or 'html' config")
 	if collected:
-		print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products, upserting to database...")
-		db.upsert_products(collected)
-		if sync:
-			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: syncing database (removing unseen products)...")
-			# Delete products from this (source, merchant, country) not seen in this run
-			seen_ids = [r.get("id") for r in collected if r.get("id")]
-			country = site.get("country") or ""
-			db.delete_missing_for_source_merchant_country(site.get("source", "scraper"), merchant, country, seen_ids)
-		print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: database operations completed")
+		if dry_run:
+			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products (DRY RUN - skipping database operations)")
+		else:
+			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products, upserting to database...")
+			db.upsert_products(collected)
+			if sync:
+				print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: syncing database (removing unseen products)...")
+				# Delete products from this (source, merchant, country) not seen in this run
+				seen_ids = [r.get("id") for r in collected if r.get("id")]
+				country = site.get("country") or ""
+				db.delete_missing_for_source_merchant_country(site.get("source", "scraper"), merchant, country, seen_ids)
+			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: database operations completed")
 	return len(collected)
 
 
@@ -289,6 +292,7 @@ def main() -> None:
 	parser.add_argument("--config", default="sites.yaml", help="Path to sites.yaml")
 	parser.add_argument("--sync", action="store_true", help="Delete products not seen in this run for each source")
 	parser.add_argument("--limit", type=int, default=0, help="Limit number of products per site (for testing)")
+	parser.add_argument("--dry-run", action="store_true", help="Skip database operations (for testing scraping without DB writes)")
 	parser.add_argument("--migrate", action="store_true", help="Run database migration for 1024-dim embeddings")
 	args = parser.parse_args()
 
@@ -298,6 +302,9 @@ def main() -> None:
 
 	# Handle migration first
 	if args.migrate:
+		if args.dry_run:
+			print("DRY RUN: Would run database migration to update embedding column to 1024 dimensions (skipped)")
+			return
 		print("Running database migration to update embedding column to 1024 dimensions...")
 		with open("migrations/20251103_update_embedding_1024dim.sql", "r") as f:
 			migration_sql = f.read()
@@ -323,7 +330,7 @@ def main() -> None:
 		print(f"\n[{datetime.now().strftime('%H:%M:%S')}] --- Processing {brand} --- ({i+1}/{len(sites)})")
 
 		start_time = datetime.now()
-		site_count = run_for_site(site, session, db, sync=args.sync, limit=args.limit)
+		site_count = run_for_site(site, session, db, sync=args.sync, limit=args.limit, dry_run=args.dry_run)
 		end_time = datetime.now()
 		duration = (end_time - start_time).total_seconds()
 
