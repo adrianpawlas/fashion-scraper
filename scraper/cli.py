@@ -268,38 +268,29 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 				if emb is not None:
 					row["embedding"] = emb
 				collected.append(row)
+	else:
+		raise ValueError(f"Site {brand} missing 'api' or 'html' config")
+
+	# Database operations - common to both api and html paths
+	if collected:
+		if dry_run:
+			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products (DRY RUN - skipping database operations)")
+		else:
+			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: upserting {len(collected)} products to database...")
+			try:
+				success = db.upsert_products(collected)
+			except Exception as e:
+				print(f"[ERROR] Exception during upsert: {e}")
+				success = False
+			if not success:
+				print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: WARNING - database upsert failed")
 			else:
-				raise ValueError(f"Site {brand} missing 'api' or 'html' config")
-			if collected:
-				if dry_run:
-					print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products (DRY RUN - skipping database operations)")
-				else:
-					print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products, generating embeddings...")
-
-					# Generate embeddings for products (like your working scraper)
-					for product in collected:
-						image_url = product.get('image_url')
-						if image_url:
-							embedding = get_image_embedding(image_url)
-							if embedding:
-								product['embedding'] = embedding
-								print(f"[EMBEDDING] Generated for: {product.get('title', 'Unknown')[:50]}")
-							else:
-								print(f"[SKIP] No embedding for: {product.get('title', 'Unknown')[:50]}")
-
-					print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: processed {len(collected)} products, upserting to database...")
-					success = db.upsert_products(collected)
-					if not success:
-						print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: WARNING - database upsert failed")
-					else:
-						print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: database upsert completed successfully")
-			if sync:
-				print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: syncing database (removing unseen products)...")
-				# Delete products from this (source, merchant, country) not seen in this run
-				seen_ids = [r.get("id") for r in collected if r.get("id")]
-				country = site.get("country") or ""
-				db.delete_missing_for_source_merchant_country(site.get("source", "scraper"), merchant, country, seen_ids)
-			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: database operations completed")
+				print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: database upsert completed successfully")
+		if sync:
+			print(f"[{datetime.now().strftime('%H:%M:%S')}] {brand}: syncing database (removing unseen products)...")
+			# Delete products from this source not seen in this run
+			seen_ids = [r.get("id") for r in collected if r.get("id")]
+			db.delete_missing_for_source(site.get("source", "scraper"), seen_ids)
 	return len(collected)
 
 

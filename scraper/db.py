@@ -33,24 +33,36 @@ class SupabaseREST:
             True if successful, False otherwise
         """
         if not products:
-            print("[WARNING] No products to upsert")
             return True
 
         try:
-            # Convert products to the expected format
-            formatted_products = []
-            seen_ids = set()  # Track unique IDs
+            # Check if products are already formatted (have 'id' field from to_supabase_row)
+            products_already_formatted = all(p.get('id') for p in products)
 
-            for product in products:
-                formatted_product = self._format_product_for_db(product)
-                if formatted_product:
-                    # Create unique key for deduplication based on source and product_url
-                    dedup_key = f"{formatted_product.get('source')}:{formatted_product.get('product_url')}"
-                    if dedup_key not in seen_ids:
-                        seen_ids.add(dedup_key)
-                        formatted_products.append(formatted_product)
-                    else:
-                        print(f"[DEBUG] Skipping duplicate product: {dedup_key}")
+            if products_already_formatted:
+                formatted_products = products
+                # Still deduplicate by 'id'
+                seen_ids = set()
+                deduped_products = []
+                for product in formatted_products:
+                    product_id = product.get('id')
+                    if product_id and product_id not in seen_ids:
+                        seen_ids.add(product_id)
+                        deduped_products.append(product)
+                formatted_products = deduped_products
+            else:
+                # Convert products to the expected format
+                formatted_products = []
+                seen_ids = set()  # Track unique IDs
+
+                for product in products:
+                    formatted_product = self._format_product_for_db(product)
+                    if formatted_product:
+                        # Create unique key for deduplication based on source and product_url
+                        dedup_key = f"{formatted_product.get('source')}:{formatted_product.get('product_url')}"
+                        if dedup_key not in seen_ids:
+                            seen_ids.add(dedup_key)
+                            formatted_products.append(formatted_product)
 
             if not formatted_products:
                 print("[WARNING] No valid products to upsert after formatting")

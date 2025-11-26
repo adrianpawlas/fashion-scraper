@@ -52,14 +52,24 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 	row: Dict[str, Any] = {}
 
-	# Generate deterministic ID using source + product_url (matching your working database.py)
+	# Generate deterministic ID using the most unique identifier available
 	source = raw.get("source") or "zara"
+	external_id = raw.get("external_id") or raw.get("product_id")
 	product_url = raw.get("product_url")
-	if source and product_url:
-		id_string = f"{source}:{product_url}"
+
+	# Prefer external_id/product_id for uniqueness, fall back to product_url if needed
+	if external_id:
+		# Use source + external_id for maximum uniqueness
+		id_string = f"{source}:{external_id}"
 		row["id"] = hashlib.sha256(id_string.encode('utf-8')).hexdigest()
 	else:
-		row["id"] = str(raw.get("external_id") or raw.get("product_id") or raw.get("product_url"))
+		# Fallback to product_url if no external_id (shouldn't happen for Zara)
+		if source and product_url:
+			id_string = f"{source}:{product_url}"
+			row["id"] = hashlib.sha256(id_string.encode('utf-8')).hexdigest()
+		else:
+			# Last resort - use whatever we have
+			row["id"] = str(raw.get("external_id") or raw.get("product_id") or raw.get("product_url") or "unknown")
 
 	row["source"] = source
 	row["title"] = raw.get("title") or "Unknown title"
