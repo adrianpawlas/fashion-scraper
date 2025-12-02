@@ -98,24 +98,59 @@ class SupabaseREST:
             # Chunk inserts to keep requests reasonable (metadata can be large)
             chunk_size = 100
             success_count = 0
+            failed_batches = []
+            
             for i in range(0, len(normalized_products), chunk_size):
                 chunk = normalized_products[i:i + chunk_size]
+                batch_num = i//chunk_size + 1
 
                 try:
                     resp = self.session.post(
                         endpoint,
                         headers=headers,
-                        data=json.dumps(chunk),  # Use data=json.dumps() matching working code
+                        data=json.dumps(chunk),
                         timeout=60
                     )
                     if resp.status_code not in (200, 201, 204):
-                        print(f"[ERROR] Failed to upsert batch {i//chunk_size + 1}: {resp.status_code} {resp.text}")
+                        error_text = resp.text
+                        # Check if it's a trigger/function error that we can retry individually
+                        if "unrecognized configuration parameter" in error_text or "Edge function URL not configured" in error_text or "schema \"net\" does not exist" in error_text:
+                            print(f"[WARNING] Batch {batch_num} failed due to database trigger issue, will retry individually")
+                            failed_batches.append(chunk)
+                        else:
+                            print(f"[ERROR] Failed to upsert batch {batch_num}: {resp.status_code} {error_text}")
                         continue
                     success_count += len(chunk)
 
                 except Exception as batch_error:
-                    print(f"[ERROR] Failed to upsert batch {i//chunk_size + 1}: {batch_error}")
+                    print(f"[ERROR] Failed to upsert batch {batch_num}: {batch_error}")
+                    failed_batches.append(chunk)
                     continue
+
+            # Retry failed batches individually (for trigger/function errors)
+            if failed_batches:
+                print(f"[INFO] Retrying {len(failed_batches)} failed batches individually...")
+                individual_success = 0
+                for batch in failed_batches:
+                    for product in batch:
+                        try:
+                            resp = self.session.post(
+                                endpoint,
+                                headers=headers,
+                                data=json.dumps([product]),
+                                timeout=30
+                            )
+                            if resp.status_code in (200, 201, 204):
+                                individual_success += 1
+                            elif "unrecognized configuration parameter" in resp.text or "Edge function URL not configured" in resp.text:
+                                # Skip products that trigger database function errors
+                                # These will be handled by mobile app's trigger system
+                                pass
+                        except Exception:
+                            pass
+                if individual_success > 0:
+                    print(f"[INFO] Successfully inserted {individual_success} products individually")
+                    success_count += individual_success
 
             print(f"[SUCCESS] Successfully upserted {success_count} products in batches")
             return success_count > 0
