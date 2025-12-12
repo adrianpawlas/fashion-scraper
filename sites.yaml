@@ -47,11 +47,10 @@
       price: "price"
       currency: "'USD'"
       image_url:
-        - "detail.colors[].xmedia[?name =~ '.*-e1$'].extraInfo.deliveryUrl | [0]"
-        - "detail.colors[].xmedia[?extraInfo.originalName=='e1'].extraInfo.deliveryUrl | [0]"
-        - "detail.colors[].xmedia[].extraInfo.deliveryUrl | [0]"
-        - "detail.colors[].xmedia[].url | [0]"
-        - "xmedia[].url | [0]"
+        - "detail.colors[].xmedia[?extraInfo.originalName=='e1'] | [0].extraInfo.deliveryUrl"
+        - "detail.colors[].xmedia[] | [0].extraInfo.deliveryUrl"
+        - "detail.colors[].xmedia[] | [0].url"
+        - "xmedia[] | [0].url"
       seo_keyword: "seo.keyword"
       seo_product_id: "id"
       product_url: null
