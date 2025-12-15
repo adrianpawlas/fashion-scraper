@@ -46,6 +46,7 @@
       gender: ["sectionName", "section", "familyName"]
       price: "price"
       currency: "'USD'"
+      country: "'w'"
       image_url:
         - "detail.colors[].xmedia[] | [0].extraInfo.deliveryUrl"
         - "detail.colors[].xmedia[] | [0].url"
