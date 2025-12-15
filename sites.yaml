@@ -47,7 +47,6 @@
       price: "price"
       currency: "'USD'"
       image_url:
-        - "detail.colors[].xmedia[?extraInfo.originalName=='e1'] | [0].extraInfo.deliveryUrl"
         - "detail.colors[].xmedia[] | [0].extraInfo.deliveryUrl"
         - "detail.colors[].xmedia[] | [0].url"
         - "xmedia[] | [0].url"
