@@ -6,6 +6,22 @@ import jmespath
 from .http_client import PoliteSession
 
 
+def _is_allowed_image_url(image_url: str) -> bool:
+    """
+    Check if an image URL contains allowed image types.
+    Only allows images with -e1, -ult21, or -s suffixes.
+    """
+    if not image_url:
+        return False
+
+    # Check for allowed suffixes before file extension
+    allowed_patterns = ['-e1', '-ult21', '-s']
+    for pattern in allowed_patterns:
+        if pattern in image_url:
+            return True
+    return False
+
+
 def flatten_product(item: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, Any]:
 	"""Map arbitrary JSON fields to our product schema using JMESPath expressions."""
 	out: Dict[str, Any] = {}
@@ -22,16 +38,22 @@ def flatten_product(item: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, 
 					continue
 				value = jmespath.search(candidate, item)
 				if value is not None:
-					# For image_url field, skip data URLs (base64 placeholders)
-					if dest == "image_url" and isinstance(value, str) and value.startswith("data:"):
-						continue
+					# For image_url field, skip data URLs (base64 placeholders) and non-allowed image types
+					if dest == "image_url" and isinstance(value, str):
+						if value.startswith("data:"):
+							continue
+						if not _is_allowed_image_url(value):
+							continue
 					break
 			out[dest] = value
 		else:
 			value = jmespath.search(expr, item)
-			# For image_url field, skip data URLs (base64 placeholders)
-			if dest == "image_url" and isinstance(value, str) and value.startswith("data:"):
-				value = None
+			# For image_url field, skip data URLs (base64 placeholders) and non-allowed image types
+			if dest == "image_url" and isinstance(value, str):
+				if value.startswith("data:"):
+					value = None
+				elif not _is_allowed_image_url(value):
+					value = None
 			out[dest] = value
 	return out
 

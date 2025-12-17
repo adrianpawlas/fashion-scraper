@@ -9,6 +9,22 @@ from bs4 import BeautifulSoup
 from .http_client import PoliteSession
 
 
+def _is_allowed_image_url(image_url: str) -> bool:
+    """
+    Check if an image URL contains allowed image types.
+    Only allows images with -e1, -ult21, or -s suffixes.
+    """
+    if not image_url:
+        return False
+
+    # Check for allowed suffixes before file extension
+    allowed_patterns = ['-e1', '-ult21', '-s']
+    for pattern in allowed_patterns:
+        if pattern in image_url:
+            return True
+    return False
+
+
 def parse_product_html(html: str, selectors: Dict[str, str]) -> Dict:
 	soup = BeautifulSoup(html, "lxml")
 	def sel_text(css: str) -> str:
@@ -17,11 +33,15 @@ def parse_product_html(html: str, selectors: Dict[str, str]) -> Dict:
 	def sel_attr(css: str, attr: str) -> str:
 		n = soup.select_one(css)
 		return (n.get(attr, "") if n else "")
+	image_url = sel_attr(selectors.get("image", ""), "src")
+	# Filter to only allow e1, ult21, and s images
+	if not _is_allowed_image_url(image_url):
+		image_url = ""
 	return {
 		"title": sel_text(selectors.get("title", "")),
 		"description": sel_text(selectors.get("description", "")),
 		"price": sel_text(selectors.get("price", "")),
-		"image_url": sel_attr(selectors.get("image", ""), "src"),
+		"image_url": image_url,
 	}
 
 
@@ -489,18 +509,23 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                                                                 img_url = img_candidate
 
                                                             if isinstance(img_url, str):
+                                                                full_img_url = ""
                                                                 if img_url.startswith('http'):
-                                                                    product_data['image_url'] = img_url
+                                                                    full_img_url = img_url
                                                                 elif img_url.startswith('//'):
-                                                                    product_data['image_url'] = f"https:{img_url}"
+                                                                    full_img_url = f"https:{img_url}"
                                                                 elif img_url.startswith('/'):
                                                                     # Construct full URL
                                                                     if '/cz/en/' in url:
                                                                         base_url = url.split('/cz/en/')[0]
                                                                     else:
                                                                         base_url = url.rsplit('/', 1)[0]
-                                                                    product_data['image_url'] = base_url + img_url
-                                                                break
+                                                                    full_img_url = base_url + img_url
+
+                                                                # Only set image URL if it contains allowed image types
+                                                                if _is_allowed_image_url(full_img_url):
+                                                                    product_data['image_url'] = full_img_url
+                                                                    break
 
                                                 if i < 1:
                                                     print(f"Extracted: title='{product_data.get('title', 'N/A')}', price={product_data.get('price', 'N/A')}, image='{product_data.get('image_url', 'N/A')[:50] if product_data.get('image_url') else 'N/A'}'")
@@ -572,7 +597,31 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                                 # Debug: show what we found
                                 if i < 2:
                                     print(f"Product {i+1} image src: '{img_src}'")
-                                # Make relative URLs absolute                                if img_src.startswith('//'):                                    img_src = f"https:{img_src}"                                    elif img_src.startswith('assets/') or img_src.startswith('/'):                                        # Try to construct full URL from base (handle different URL patterns)                                        if '/cz/en/' in url:                                            base_url = url.split('/cz/en/')[0]                                            elif '/en_us/' in url:                                                base_url = url.split('/en_us/')[0]                                                else:                                                    base_url = url.rsplit('/', 1)[0]                                                    img_src = urljoin(base_url + '/', img_src)                                                    product_data["image_url"] = img_src                                                    else:                                                        if i < 2:                                                            print(f"Product {i+1} image selector '{selector}' found no elements")                    elif field == "price":
+                                # Make relative URLs absolute
+                                full_img_src = ""
+                                if img_src.startswith('//'):
+                                    full_img_src = f"https:{img_src}"
+                                elif img_src.startswith('assets/') or img_src.startswith('/'):
+                                    # Try to construct full URL from base (handle different URL patterns)
+                                    if '/cz/en/' in url:
+                                        base_url = url.split('/cz/en/')[0]
+                                    elif '/en_us/' in url:
+                                        base_url = url.split('/en_us/')[0]
+                                    else:
+                                        base_url = url.rsplit('/', 1)[0]
+                                    full_img_src = urljoin(base_url + '/', img_src)
+                                elif img_src.startswith('http'):
+                                    full_img_src = img_src
+
+                                # Only set image URL if it contains allowed image types
+                                if _is_allowed_image_url(full_img_src):
+                                    product_data["image_url"] = full_img_src
+                                else:
+                                    if i < 2:
+                                        print(f"Product {i+1} image filtered out (not e1/ult21/s): '{full_img_src}'")
+                            else:
+                                if i < 2:
+                                    print(f"Product {i+1} image selector '{selector}' found no elements")                    elif field == "price":
                         # Handle price extraction
                         price_elem = product_elem.select_one(selector)
                         if price_elem:
