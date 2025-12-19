@@ -668,8 +668,10 @@ def scrape_category_for_products(session: PoliteSession, url: str, product_selec
                 if not product_data.get("title"):
                     product_data["title"] = f"Pull&Bear Product {product_data.get('external_id', 'Unknown')}"
                 if not product_data.get("image_url"):
-                    # Provide a data URL placeholder image since database requires it
-                    product_data["image_url"] = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg=="
+                    # Skip product if no valid image_url (after filtering for allowed types)
+                    if i < 5:  # Debug first 5 skipped products
+                        print(f"Product {i+1} skipped - no valid image_url after filtering")
+                    continue
 
                 products.append(product_data)
                 if i < 3:  # Debug first 3 products
