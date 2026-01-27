@@ -41,8 +41,9 @@ python -m scraper.cli --sites Zara --sync
 - HTML mode: category URLs + CSS selectors. Product pages produce minimal fields; you can extend selectors. Set `source: manual`.
 
 ### Schema mapping
-- Upserts use unique key `(source, external_id)`.
-- Minimal fields we map: `source`, `external_id`, `merchant_name`, `title`, `price`, `currency`, `image_url`, `product_url`, `affiliate_url`, `brand`, `availability`.
+- Upserts use unique key `(source, product_url)`.
+- Minimal fields we map: `source`, `external_id`, `merchant_name`, `title`, `price`, `sale`, `image_url`, `product_url`, `affiliate_url`, `brand`, `availability`.
+- Price format: comma-separated currencies (e.g., "20USD,450CZK,75PLN"). Sale field uses same format or null if no sale.
 - Add optional fields if you have them: `sku`, `gtin_upc_ean`, `category`, `subcategory`, `gender`, `tags`.
 
 ### Migration for unique index

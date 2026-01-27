@@ -45,7 +45,8 @@
       color_names: ["detail.colors[].name", "detail.colors[].colorName", "detail.colors[].badge | [?@=='COLOR'] | []"]
       gender: ["sectionName", "section", "familyName"]
       price: "price"
-      currency: "'USD'"
+      sale: ["salePrice", "sale_price", "sale"]  # Sale price - will be null if not present
+      currency: "'USD'"  # Fallback currency for formatting single prices (not stored in DB)
       country: "'w'"
       image_url:
         - "detail.colors[].xmedia[] | [0].extraInfo.deliveryUrl"

@@ -1,5 +1,97 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import re
+
+
+def _format_price_string(price_data: Any, currency: Optional[str] = None) -> Optional[str]:
+	"""
+	Format price data into comma-separated currency format (e.g., "20USD,450CZK,75PLN").
+	
+	Accepts:
+	- String already in format "20USD,450CZK,75PLN" -> returns as-is
+	- String like "20" or "20.99" with currency -> formats as "20USD"
+	- Dict like {"USD": 20, "CZK": 450} -> formats as "20USD,450CZK"
+	- List of dicts like [{"price": 20, "currency": "USD"}, ...] -> formats as "20USD,450CZK"
+	- Single numeric value with currency -> formats as "20USD"
+	"""
+	if price_data is None:
+		return None
+	
+	# If already a string in the expected format (contains currency codes), return as-is
+	if isinstance(price_data, str):
+		price_str = price_data.strip()
+		# Check if it looks like already formatted (contains currency codes)
+		if re.search(r'[A-Z]{3}', price_str):
+			return price_str
+		# Otherwise, try to format with provided currency
+		if currency:
+			try:
+				# Try to extract numeric value
+				num_str = re.sub(r'[^0-9.,]', '', price_str)
+				if num_str:
+					# Handle decimal separators
+					if ',' in num_str and '.' in num_str:
+						# Both present - assume comma is thousands, dot is decimal
+						num_str = num_str.replace(',', '')
+					elif ',' in num_str:
+						# Only comma - could be decimal or thousands
+						if num_str.count(',') == 1 and len(num_str.split(',')[1]) <= 2:
+							num_str = num_str.replace(',', '.')
+						else:
+							num_str = num_str.replace(',', '')
+					if num_str:
+						return f"{num_str}{currency}"
+			except Exception:
+				pass
+		return price_str if price_str else None
+	
+	# If dict with currency keys
+	if isinstance(price_data, dict):
+		price_parts = []
+		for curr, val in price_data.items():
+			if val is not None and isinstance(curr, str) and len(curr) == 3:
+				try:
+					# Convert value to string, removing unnecessary decimals
+					val_str = str(float(val)) if isinstance(val, (int, float)) else str(val)
+					# Remove trailing .0 if present
+					if val_str.endswith('.0'):
+						val_str = val_str[:-2]
+					price_parts.append(f"{val_str}{curr.upper()}")
+				except (ValueError, TypeError):
+					continue
+		return ",".join(price_parts) if price_parts else None
+	
+	# If list of price objects
+	if isinstance(price_data, list):
+		price_parts = []
+		for item in price_data:
+			if isinstance(item, dict):
+				# Try different key patterns
+				price_val = item.get('price') or item.get('value') or item.get('amount')
+				price_curr = item.get('currency') or item.get('curr') or item.get('code')
+				if price_val is not None and price_curr:
+					try:
+						val_str = str(float(price_val)) if isinstance(price_val, (int, float)) else str(price_val)
+						if val_str.endswith('.0'):
+							val_str = val_str[:-2]
+						price_parts.append(f"{val_str}{str(price_curr).upper()}")
+					except (ValueError, TypeError):
+						continue
+		return ",".join(price_parts) if price_parts else None
+	
+	# If single numeric value with currency
+	if isinstance(price_data, (int, float)) and currency:
+		# Handle Zara API prices in cents (minor units)
+		# If it's a large integer >= 1000, assume it's in cents and convert
+		if isinstance(price_data, int) and price_data >= 1000:
+			val_str = str(price_data / 100.0)
+		else:
+			val_str = str(float(price_data))
+		# Remove trailing .0 if present
+		if val_str.endswith('.0'):
+			val_str = val_str[:-2]
+		return f"{val_str}{currency}"
+	
+	return None
 
 
 def _normalize_availability(raw_availability: Any) -> str:
@@ -40,8 +132,8 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	- title: str
 	- description: str (optional)
 	- brand: str (optional)
-	- price: float|str (optional)
-	- currency: str (e.g., 'GBP')
+	- price: str|dict|list (optional) - formatted as "20USD,450CZK,75PLN" or dict/list of prices
+	- sale: str|dict|list (optional) - sale prices in same format, null if no sale
 	- image_url: str
 	- product_url: str
 	- affiliate_url: str (optional)
@@ -75,13 +167,20 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	row["title"] = raw.get("title") or "Unknown title"
 	row["description"] = raw.get("description")
 	row["brand"] = raw.get("brand")
-	row["price"] = raw.get("price")
-	row["currency"] = raw.get("currency", "USD")
 	row["image_url"] = raw.get("image_url")
 	row["product_url"] = product_url
 	row["affiliate_url"] = raw.get("affiliate_url")
 	# Set second_hand to FALSE for all current brands (they are not second-hand marketplaces)
 	row["second_hand"] = False
+	
+	# Format price as comma-separated currencies (e.g., "20USD,450CZK,75PLN")
+	price_data = raw.get("price")
+	currency = raw.get("currency")  # Fallback currency if price is single value
+	row["price"] = _format_price_string(price_data, currency)
+	
+	# Format sale price (same format, null if no sale)
+	sale_data = raw.get("sale") or raw.get("sale_price") or raw.get("salePrice")
+	row["sale"] = _format_price_string(sale_data, currency) if sale_data else None
 
 	# Normalize gender to "men" or "women"
 	raw_gender = raw.get("gender")
@@ -161,37 +260,8 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 		if formatted:
 			row["product_url"] = formatted
 
-	# Normalize price from minor units (cents) to decimal if needed
-	try:
-		price_val = row.get("price")
-		if price_val is not None:
-			# Handle common price formats: integers in minor units, "49.90", "CZK849", "$49.90"
-			if isinstance(price_val, (int, float)):
-				# If it's a large integer, assume minor units (e.g., 4990 -> 49.90)
-				if isinstance(price_val, int) and price_val >= 1000:
-					row["price"] = price_val / 100.0
-				else:
-					row["price"] = float(price_val)
-			elif isinstance(price_val, str):
-				s = price_val.strip()
-				# Remove currency symbols and letters
-				s_clean = re.sub(r"[^0-9.,]", "", s)
-				# Replace comma as decimal if needed
-				if s_clean.count(",") == 1 and s_clean.count(".") == 0:
-					s_clean = s_clean.replace(",", ".")
-				# Remove thousand separators
-				if s_clean.count(".") > 1:
-					parts = s_clean.split(".")
-					s_clean = "".join(parts[:-1]) + "." + parts[-1]
-				if s_clean:
-					num = float(s_clean)
-					# If looks like minor units (>= 1000 and no decimal), scale down
-					if num >= 1000 and abs(num - int(num)) < 1e-9:
-						row["price"] = num / 100.0
-					else:
-						row["price"] = num
-	except Exception:
-		pass
+	# Price and sale are already formatted by _format_price_string above
+	# No additional normalization needed - they're stored as text strings
 
 	# Build metadata json: include base info, plus site/source-specific _meta and useful raw fields
 	try:

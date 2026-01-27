@@ -193,8 +193,8 @@ class SupabaseREST:
                 'title': title,
                 'brand': product.get('brand'),
                 'gender': product.get('gender'),
-                'price': product.get('price'),
-                'currency': product.get('currency', 'USD'),
+                'price': product.get('price'),  # Text format: "20USD,450CZK,75PLN"
+                'sale': product.get('sale'),  # Text format: "15USD,350CZK,60PLN" or null
                 'size': product.get('size'),
                 'second_hand': product.get('second_hand', False)
             }

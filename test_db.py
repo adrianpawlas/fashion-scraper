@@ -47,7 +47,8 @@ try:
                     print(f'   Source: {product.get("source", "N/A")}')
                     print(f'   Category: {product.get("category", "N/A")}')
                     print(f'   Gender: {product.get("gender", "N/A")}')
-                    print(f'   Price: {product.get("price", "N/A")} {product.get("currency", "")}')
+                    print(f'   Price: {product.get("price", "N/A")}')
+                    print(f'   Sale: {product.get("sale", "N/A")}')
                     print(f'   Has embedding: {"Yes" if product.get("embedding") else "No"}')
                     print(f'   Second hand: {product.get("second_hand", False)}')
                     if product.get("created_at"):
