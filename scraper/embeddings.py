@@ -130,3 +130,41 @@ def get_image_embedding(image_url: str, max_retries: int = 3) -> Optional[list]:
             print(f"        URL: {raw_url}")
     print(f"[FAILED] All local embedding attempts failed for: {image_url[:60]}")
     return None
+
+
+def get_text_embedding(text: str) -> Optional[list]:
+    """Get text embedding using the same SigLIP model (768-dim), for product info (title, description, category, etc.)."""
+    if not text or not str(text).strip():
+        return None
+
+    processor, model = _get_model()
+    if model is None or processor is None:
+        return None
+
+    try:
+        # SigLIP expects padding="max_length" as in training
+        inputs = processor(
+            text=[str(text).strip()],
+            padding="max_length",
+            return_tensors="pt",
+        )
+        inputs = {k: v.to(model.device) if hasattr(model, "device") and hasattr(v, "to") else v for k, v in inputs.items()}
+
+        with torch.no_grad():
+            # Pass only text inputs; model returns text_embeds in same space as image_embeds
+            outputs = model(**inputs)
+            text_embeds = getattr(outputs, "text_embeds", None)
+            if text_embeds is None:
+                # Fallback: use get_text_features (pooler_output)
+                text_embeds = model.get_text_features(**inputs)
+                if hasattr(text_embeds, "pooler_output"):
+                    text_embeds = text_embeds.pooler_output
+            embedding = text_embeds.squeeze(0).tolist()
+
+        if len(embedding) != 768:
+            print(f"[ERROR] Text embedding dimension mismatch: got {len(embedding)}, expected 768")
+            return None
+        return embedding
+    except Exception as e:
+        print(f"[ERROR] Text embedding failed: {str(e)[:80]}")
+        return None

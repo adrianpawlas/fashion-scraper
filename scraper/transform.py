@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional
 import re
+import json
 
 
 def _format_price_string(price_data: Any, currency: Optional[str] = None) -> Optional[str]:
@@ -165,9 +166,17 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 	row["source"] = source
 	row["title"] = raw.get("title") or "Unknown title"
-	row["description"] = raw.get("description")
+	# Description: actual product description only; null if none (no color names here)
+	row["description"] = (raw.get("description") or "").strip() or None
 	row["brand"] = raw.get("brand")
-	row["image_url"] = raw.get("image_url")
+	# Main image only in image_url (used for image embedding); all other images in additional_images (no embeddings)
+	all_xmedia = [u for u in (raw.get("_xmedia_urls") or []) if u]
+	if all_xmedia:
+		row["image_url"] = raw.get("image_url") or (all_xmedia[0] if all_xmedia else None)
+		row["additional_images"] = json.dumps(all_xmedia[1:]) if len(all_xmedia) > 1 else None
+	else:
+		row["image_url"] = raw.get("image_url")
+		row["additional_images"] = json.dumps(raw["additional_images"]) if raw.get("additional_images") else None
 	row["product_url"] = product_url
 	row["affiliate_url"] = raw.get("affiliate_url")
 	# Set second_hand to FALSE for all current brands (they are not second-hand marketplaces)
@@ -194,33 +203,41 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 		else:
 			row["gender"] = raw_gender  # Keep original if doesn't match
 
-	# Category detection based on Zara category IDs
+	# Category: always set from endpoint (product's category). Never null. Comma-separated if multiple (e.g. "hoodie, sweater").
+	# Map Zara category IDs to readable names (from sites.yaml endpoints).
+	ZARA_CATEGORY_IDS = {
+		"2443335": "clothing",
+		"2418883": "leather",
+		"2419032": "coats",
+		"2419045": "puffers",
+		"2420306": "knitwear",
+		"2420942": "blazers",
+		"2420896": "dresses, jumpsuits",
+		"2419940": "tops",
+		"2420490": "bodysuits",
+		"2420285": "co-ords",
+		"2419844": "cardigans, sweaters",
+		"2420795": "trousers",
+		"2420369": "shirts",
+		"2417772": "jackets",
+		"2467841": "sweatshirts, sweatpants",
+		"2419185": "jeans",
+		"2420417": "tshirts",
+		"2420454": "skirts, shorts",
+		"2419160": "footwear",
+		"2417728": "bags",
+		"2418989": "accessories, jewelry",
+		"2419807": "lingerie",
+		"2419833": "perfumes",
+		"2418919": "beauty",
+	}
 	category_id = None
 	endpoint = raw.get("_meta", {}).get("endpoint")
 	if endpoint:
-		# Extract category ID from endpoint URL like "https://www.zara.com/us/en/category/2417728/products?ajax=true"
-		import re
 		match = re.search(r'/category/(\d+)/', str(endpoint))
 		if match:
 			category_id = match.group(1)
-
-	# Accessory categories (bags, jewelry, lingerie, perfumes, beauty)
-	accessory_category_ids = {
-		"2417728",  # women's bags
-		"2418989",  # women's accessories & jewelry
-		"2419807",  # women's lingerie
-		"2419833",  # women's perfumes
-		"2418919",  # women's beauty
-		"2419160",  # women's shoes (footwear)
-	}
-
-	if category_id in accessory_category_ids:
-		if category_id == "2419160":
-			row["category"] = "footwear"
-		else:
-			row["category"] = "accessory"
-	else:
-		row["category"] = None  # Clothing items get null category
+	row["category"] = ZARA_CATEGORY_IDS.get(category_id, "clothing") if category_id else "clothing"
 
 
 	# Normalize sizes: accept str, list[str], or nested lists → text (comma-separated)
@@ -273,7 +290,6 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 		if raw.get("original_currency"):
 			meta["original_currency"] = raw.get("original_currency")
 		if meta:
-			import json
 			row["metadata"] = json.dumps(meta)
 	except Exception:
 		pass
@@ -281,3 +297,25 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	return row
 
 
+def build_product_info_text(row: Dict[str, Any]) -> str:
+	"""Build a single text string from all product info for text embedding (name, description, category, size, etc.)."""
+	parts: List[str] = []
+	if row.get("title"):
+		parts.append(str(row["title"]))
+	if row.get("description"):
+		parts.append(str(row["description"]))
+	if row.get("category"):
+		parts.append(str(row["category"]))
+	if row.get("brand"):
+		parts.append(str(row["brand"]))
+	if row.get("size"):
+		parts.append(f"Size: {row['size']}")
+	if row.get("gender"):
+		parts.append(str(row["gender"]))
+	if row.get("price"):
+		parts.append(f"Price: {row['price']}")
+	if row.get("sale"):
+		parts.append(f"Sale: {row['sale']}")
+	if row.get("other"):
+		parts.append(str(row["other"]))
+	return " ".join(parts).strip() or ""

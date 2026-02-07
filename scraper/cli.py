@@ -6,10 +6,10 @@ from .config import load_env, load_sites_config, get_site_configs, get_default_h
 from .http_client import PoliteSession
 from .db import SupabaseDB
 from .api_ingestor import ingest_api, discover_category_urls, discover_from_html
-from .transform import to_supabase_row
+from .transform import to_supabase_row, build_product_info_text
 # from .html_scraper import scrape_category_for_links, scrape_product_page, scrape_category_for_products
 from .sitemap import fetch_sitemap_urls
-from .embeddings import get_image_embedding
+from .embeddings import get_image_embedding, get_text_embedding
 
 
 def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool = False, limit: int = 0, dry_run: bool = False) -> int:
@@ -103,9 +103,16 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 								prod["external_id"] = prod.get("product_id") or url
 								prod["product_url"] = url
 								row = to_supabase_row(prod)
+								if not row.get("price"):
+									continue
 								emb = get_image_embedding(row.get("image_url"))
 								if emb is not None:
-									row["embedding"] = emb
+									row["image_embedding"] = emb
+								info_text = build_product_info_text(row)
+								if info_text:
+									info_emb = get_text_embedding(info_text)
+									if info_emb is not None:
+										row["info_embedding"] = info_emb
 								collected.append(row)
 							# Skip to next endpoint after HTML fallback
 							continue
@@ -137,9 +144,16 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 							prod["external_id"] = prod.get("product_id") or url
 							prod["product_url"] = url
 							row = to_supabase_row(prod)
+							if not row.get("price"):
+								continue
 							emb = get_image_embedding(row.get("image_url"))
 							if emb is not None:
-								row["embedding"] = emb
+								row["image_embedding"] = emb
+							info_text = build_product_info_text(row)
+							if info_text:
+								info_emb = get_text_embedding(info_text)
+								if info_emb is not None:
+									row["info_embedding"] = info_emb
 							collected.append(row)
 						# skip normal product flow for this endpoint
 						continue
@@ -158,10 +172,16 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 			if api_conf.get("product_url_template"):
 				p["product_url_template"] = api_conf["product_url_template"]
 			row = to_supabase_row(p)
-			# compute image embedding only
+			if not row.get("price"):
+				continue
 			emb = get_image_embedding(row.get("image_url"))
 			if emb is not None:
-				row["embedding"] = emb
+				row["image_embedding"] = emb
+			info_text = build_product_info_text(row)
+			if info_text:
+				info_emb = get_text_embedding(info_text)
+				if info_emb is not None:
+					row["info_embedding"] = info_emb
 			collected.append(row)
 	elif site.get("html"):
 		html_conf = site["html"]
@@ -214,17 +234,24 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 						prod["external_id"] = prod.get("external_id") or prod.get("product_id") or f"unknown_{len(collected)}"
 						# No product_url since we extracted from category page
 						row = to_supabase_row(prod)
+						if not row.get("price"):
+							continue
 						image_url = row.get("image_url")
 						if image_url:
 							print(f"Getting embedding for {brand} product {prod.get('external_id', 'unknown')}: {image_url[:100]}...")
 							emb = get_image_embedding(image_url)
 							if emb is not None:
-								row["embedding"] = emb
+								row["image_embedding"] = emb
 								print(f"✓ Embedding generated for {brand} product {prod.get('external_id', 'unknown')}")
 							else:
 								print(f"✗ Failed to generate embedding for {brand} product {prod.get('external_id', 'unknown')}")
 						else:
 							print(f"No image URL for {brand} product {prod.get('external_id', 'unknown')}")
+						info_text = build_product_info_text(row)
+						if info_text:
+							info_emb = get_text_embedding(info_text)
+							if info_emb is not None:
+								row["info_embedding"] = info_emb
 						collected.append(row)
 						if limit and len(collected) >= limit:
 							break
@@ -264,9 +291,16 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 				prod["external_id"] = prod.get("product_id") or url
 				prod["product_url"] = url
 				row = to_supabase_row(prod)
+				if not row.get("price"):
+					continue
 				emb = get_image_embedding(row.get("image_url"))
 				if emb is not None:
-					row["embedding"] = emb
+					row["image_embedding"] = emb
+				info_text = build_product_info_text(row)
+				if info_text:
+					info_emb = get_text_embedding(info_text)
+					if info_emb is not None:
+						row["info_embedding"] = info_emb
 				collected.append(row)
 	else:
 		raise ValueError(f"Site {brand} missing 'api' or 'html' config")

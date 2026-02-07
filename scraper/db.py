@@ -82,6 +82,8 @@ class SupabaseREST:
             all_keys = set()
             for p in products_to_upsert:
                 all_keys.update(p.keys())
+            # Do not send 'embedding' - table uses image_embedding and info_embedding (PostgREST PGRST204)
+            all_keys.discard("embedding")
 
             # Ensure every product has all keys (fill missing with None)
             normalized_products = []
@@ -177,6 +179,10 @@ class SupabaseREST:
             if not source or not product_url or not image_url or not title:
                 print(f"[WARNING] Missing required fields (source, product_url, image_url, title): {product}")
                 return None
+            # All products MUST have a price
+            if not product.get("price"):
+                print(f"[WARNING] Skipping product without price (source, product_url): {source}, {product_url}")
+                return None
 
             # Generate deterministic ID from source and product_url
             # This ensures the same product always gets the same ID
@@ -209,9 +215,19 @@ class SupabaseREST:
             if 'category' in product and product['category']:
                 formatted['category'] = product['category']
 
-            # Optional embedding
-            if 'embedding' in product and product['embedding'] is not None:
-                formatted['embedding'] = product['embedding']
+            # Optional: additional_images (JSON array as text)
+            if 'additional_images' in product and product['additional_images']:
+                formatted['additional_images'] = product['additional_images']
+
+            # Image embedding (from main image_url only)
+            if 'image_embedding' in product and product['image_embedding'] is not None:
+                formatted['image_embedding'] = product['image_embedding']
+            elif 'embedding' in product and product['embedding'] is not None:
+                formatted['image_embedding'] = product['embedding']
+
+            # Info embedding (text from title, description, category, size, etc.)
+            if 'info_embedding' in product and product['info_embedding'] is not None:
+                formatted['info_embedding'] = product['info_embedding']
 
             # Optional metadata
             metadata = {}
