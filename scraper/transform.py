@@ -315,7 +315,7 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_product_info_text(row: Dict[str, Any]) -> str:
-	"""Build a single text string from all product info for text embedding (name, description, category, size, etc.). Always returns at least title so embedding is never skipped."""
+	"""Build a single text string from all product info for text embedding (title, description, category, size, metadata, etc.). Always returns at least title so embedding is never skipped."""
 	parts: List[str] = []
 	if row.get("title"):
 		parts.append(str(row["title"]))
@@ -335,4 +335,17 @@ def build_product_info_text(row: Dict[str, Any]) -> str:
 		parts.append(f"Sale: {row['sale']}")
 	if row.get("other"):
 		parts.append(str(row["other"]))
+	if row.get("metadata"):
+		meta = row["metadata"]
+		if isinstance(meta, str):
+			try:
+				meta_obj = json.loads(meta)
+				if isinstance(meta_obj, dict):
+					parts.append(" ".join(f"{k}: {v}" for k, v in meta_obj.items() if v))
+				else:
+					parts.append(meta)
+			except Exception:
+				parts.append(meta)
+		else:
+			parts.append(str(meta))
 	return " ".join(parts).strip() or (str(row.get("title") or "product"))

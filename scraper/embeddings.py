@@ -142,33 +142,36 @@ def get_text_embedding(text: str) -> Optional[list]:
         return None
 
     try:
-        # SigLIP expects padding="max_length" as in training
-        inputs = processor(
-            text=[str(text).strip()],
+        # Tokenize with SigLIP tokenizer (max 64 tokens); use padding="max_length" as in training
+        tokenizer = processor.tokenizer
+        max_length = getattr(tokenizer, "model_max_length", 64)
+        if max_length > 512:
+            max_length = 64
+        encoded = tokenizer(
+            str(text).strip(),
             padding="max_length",
+            max_length=max_length,
+            truncation=True,
             return_tensors="pt",
         )
-        try:
-            device = next(model.parameters()).device
-            inputs = {k: v.to(device) if hasattr(v, "to") else v for k, v in inputs.items()}
-        except Exception:
-            pass
+        # Only pass text keys to avoid passing pixel_values etc.
+        text_keys = {k: v for k, v in encoded.items() if k in ("input_ids", "attention_mask", "position_ids")}
+        device = next(model.parameters()).device
+        text_keys = {k: v.to(device) if hasattr(v, "to") else v for k, v in text_keys.items()}
 
         with torch.no_grad():
-            # Pass only text inputs; model returns text_embeds in same space as image_embeds
-            outputs = model(**inputs)
-            text_embeds = getattr(outputs, "text_embeds", None)
-            if text_embeds is None:
-                # Fallback: use get_text_features (pooler_output)
-                text_embeds = model.get_text_features(**inputs)
-                if hasattr(text_embeds, "pooler_output"):
-                    text_embeds = text_embeds.pooler_output
-            embedding = text_embeds.squeeze(0).tolist()
+            # get_text_features returns the projected text embedding (same 768-d space as image_embeds)
+            text_output = model.get_text_features(**text_keys)
+            if hasattr(text_output, "pooler_output"):
+                emb = text_output.pooler_output
+            else:
+                emb = text_output[0] if isinstance(text_output, (list, tuple)) else text_output
+            embedding = emb.squeeze(0).tolist()
 
         if len(embedding) != 768:
             print(f"[ERROR] Text embedding dimension mismatch: got {len(embedding)}, expected 768")
             return None
         return embedding
     except Exception as e:
-        print(f"[ERROR] Text embedding failed: {str(e)[:80]}")
+        print(f"[ERROR] Text embedding failed: {str(e)[:200]}")
         return None
