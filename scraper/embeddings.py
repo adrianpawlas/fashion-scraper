@@ -148,7 +148,11 @@ def get_text_embedding(text: str) -> Optional[list]:
             padding="max_length",
             return_tensors="pt",
         )
-        inputs = {k: v.to(model.device) if hasattr(model, "device") and hasattr(v, "to") else v for k, v in inputs.items()}
+        try:
+            device = next(model.parameters()).device
+            inputs = {k: v.to(device) if hasattr(v, "to") else v for k, v in inputs.items()}
+        except Exception:
+            pass
 
         with torch.no_grad():
             # Pass only text inputs; model returns text_embeds in same space as image_embeds

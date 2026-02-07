@@ -109,10 +109,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 								if emb is not None:
 									row["image_embedding"] = emb
 								info_text = build_product_info_text(row)
-								if info_text:
-									info_emb = get_text_embedding(info_text)
-									if info_emb is not None:
-										row["info_embedding"] = info_emb
+								info_emb = get_text_embedding(info_text)
+								if info_emb is not None:
+									row["info_embedding"] = info_emb
 								collected.append(row)
 							# Skip to next endpoint after HTML fallback
 							continue
@@ -150,10 +149,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 							if emb is not None:
 								row["image_embedding"] = emb
 							info_text = build_product_info_text(row)
-							if info_text:
-								info_emb = get_text_embedding(info_text)
-								if info_emb is not None:
-									row["info_embedding"] = info_emb
+							info_emb = get_text_embedding(info_text)
+							if info_emb is not None:
+								row["info_embedding"] = info_emb
 							collected.append(row)
 						# skip normal product flow for this endpoint
 						continue
@@ -178,10 +176,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 			if emb is not None:
 				row["image_embedding"] = emb
 			info_text = build_product_info_text(row)
-			if info_text:
-				info_emb = get_text_embedding(info_text)
-				if info_emb is not None:
-					row["info_embedding"] = info_emb
+			info_emb = get_text_embedding(info_text)
+			if info_emb is not None:
+				row["info_embedding"] = info_emb
 			collected.append(row)
 	elif site.get("html"):
 		html_conf = site["html"]
@@ -248,10 +245,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 						else:
 							print(f"No image URL for {brand} product {prod.get('external_id', 'unknown')}")
 						info_text = build_product_info_text(row)
-						if info_text:
-							info_emb = get_text_embedding(info_text)
-							if info_emb is not None:
-								row["info_embedding"] = info_emb
+						info_emb = get_text_embedding(info_text)
+						if info_emb is not None:
+							row["info_embedding"] = info_emb
 						collected.append(row)
 						if limit and len(collected) >= limit:
 							break
@@ -297,10 +293,9 @@ def run_for_site(site: Dict, session: PoliteSession, db: SupabaseDB, sync: bool 
 				if emb is not None:
 					row["image_embedding"] = emb
 				info_text = build_product_info_text(row)
-				if info_text:
-					info_emb = get_text_embedding(info_text)
-					if info_emb is not None:
-						row["info_embedding"] = info_emb
+				info_emb = get_text_embedding(info_text)
+				if info_emb is not None:
+					row["info_embedding"] = info_emb
 				collected.append(row)
 	else:
 		raise ValueError(f"Site {brand} missing 'api' or 'html' config")

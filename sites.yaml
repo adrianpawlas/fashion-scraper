@@ -41,8 +41,12 @@
       external_id: "seo.discernProductId"
       product_id: "seo.discernProductId"
       title: "name"
-      # Description: actual product description only (no color names)
-      description: ["seo.jsonLd.description", "description"]
+      # Description: actual product description (e.g. "Relaxed fit hoodie..."). No color names.
+      description:
+        - "detail.description"
+        - "detail.longDescription"
+        - "seo.jsonLd.description"
+        - "description"
       color_names: ["detail.colors[].name", "detail.colors[].colorName", "detail.colors[].badge | [?@=='COLOR'] | []"]
       gender: ["sectionName", "section", "familyName"]
       price: "price"
@@ -54,9 +58,13 @@
         - "detail.colors[].xmedia[] | [0].extraInfo.deliveryUrl"
         - "detail.colors[].xmedia[] | [0].url"
         - "xmedia[] | [0].url"
+      # All product images (flattened). First becomes image_url, rest go to additional_images.
       _xmedia_urls:
         - "detail.colors[].xmedia[].extraInfo.deliveryUrl"
         - "detail.colors[].xmedia[].url"
+        - "detail.colors[].xmedia[].path"
+        - "xmedia[].extraInfo.deliveryUrl"
+        - "xmedia[].url"
       seo_keyword: "seo.keyword"
       seo_product_id: "id"
       product_url: null

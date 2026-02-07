@@ -170,7 +170,24 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 	row["description"] = (raw.get("description") or "").strip() or None
 	row["brand"] = raw.get("brand")
 	# Main image only in image_url (used for image embedding); all other images in additional_images (no embeddings)
-	all_xmedia = [u for u in (raw.get("_xmedia_urls") or []) if u]
+	# Flatten in case API returns nested lists (e.g. one list per color)
+	def _flatten_urls(val: Any) -> List[str]:
+		out: List[str] = []
+		if not val:
+			return out
+		if isinstance(val, list):
+			for x in val:
+				if isinstance(x, list):
+					out.extend(_flatten_urls(x))
+				elif isinstance(x, str) and x.strip():
+					out.append(x.strip())
+		elif isinstance(val, str) and val.strip():
+			out.append(val.strip())
+		return out
+	all_xmedia = _flatten_urls(raw.get("_xmedia_urls"))
+	# Dedupe preserving order (same URL may appear in multiple colors)
+	seen_url: set = set()
+	all_xmedia = [u for u in all_xmedia if u not in seen_url and not seen_url.add(u)]
 	if all_xmedia:
 		row["image_url"] = raw.get("image_url") or (all_xmedia[0] if all_xmedia else None)
 		row["additional_images"] = json.dumps(all_xmedia[1:]) if len(all_xmedia) > 1 else None
@@ -298,7 +315,7 @@ def to_supabase_row(raw: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_product_info_text(row: Dict[str, Any]) -> str:
-	"""Build a single text string from all product info for text embedding (name, description, category, size, etc.)."""
+	"""Build a single text string from all product info for text embedding (name, description, category, size, etc.). Always returns at least title so embedding is never skipped."""
 	parts: List[str] = []
 	if row.get("title"):
 		parts.append(str(row["title"]))
@@ -318,4 +335,4 @@ def build_product_info_text(row: Dict[str, Any]) -> str:
 		parts.append(f"Sale: {row['sale']}")
 	if row.get("other"):
 		parts.append(str(row["other"]))
-	return " ".join(parts).strip() or ""
+	return " ".join(parts).strip() or (str(row.get("title") or "product"))

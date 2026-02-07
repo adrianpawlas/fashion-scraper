@@ -30,22 +30,42 @@ def flatten_product(item: Dict[str, Any], mapping: Dict[str, Any]) -> Dict[str, 
 		if expr is None or (isinstance(expr, str) and expr.strip() == ""):
 			out[dest] = None
 			continue
-		# Support a list of fallback expressions: first non-null wins
+		# Support a list of fallback expressions: first non-null wins (or merge lists for _xmedia_urls)
 		if isinstance(expr, list):
-			value = None
-			for candidate in expr:
-				if candidate is None or (isinstance(candidate, str) and candidate.strip() == ""):
-					continue
-				value = jmespath.search(candidate, item)
-				if value is not None:
-					# For image_url field, skip data URLs (base64 placeholders) and non-allowed image types
-					if dest == "image_url" and isinstance(value, str):
-						if value.startswith("data:"):
-							continue
-						if not _is_allowed_image_url(value):
-							continue
-					break
-			out[dest] = value
+			if dest == "_xmedia_urls":
+				# Merge all image URLs from every expression to get full set (not just first hit)
+				merged: List[Any] = []
+				seen: set = set()
+				for candidate in expr:
+					if candidate is None or (isinstance(candidate, str) and candidate.strip() == ""):
+						continue
+					value = jmespath.search(candidate, item)
+					if value is None:
+						continue
+					for u in (value if isinstance(value, list) else [value]):
+						if isinstance(u, str) and u.strip() and u not in seen:
+							seen.add(u)
+							merged.append(u)
+						elif isinstance(u, list):
+							for v in u:
+								if isinstance(v, str) and v.strip() and v not in seen:
+									seen.add(v)
+									merged.append(v)
+				out[dest] = merged if merged else None
+			else:
+				value = None
+				for candidate in expr:
+					if candidate is None or (isinstance(candidate, str) and candidate.strip() == ""):
+						continue
+					value = jmespath.search(candidate, item)
+					if value is not None:
+						if dest == "image_url" and isinstance(value, str):
+							if value.startswith("data:"):
+								continue
+							if not _is_allowed_image_url(value):
+								continue
+						break
+				out[dest] = value
 		else:
 			value = jmespath.search(expr, item)
 			# For image_url field, skip data URLs (base64 placeholders) and non-allowed image types
